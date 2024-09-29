@@ -7,8 +7,8 @@
 ;  https://www.autohotkey.com/boards/viewtopic.php?f=83&t=116471
 ;
 ;  Author  : FeiYue
-;  Version : 9.4
-;  Date    : 2023-12-18
+;  Version : 9.7
+;  Date    : 2024-06-18
 ;
 ;  Usage:  (required AHK v2.02)
 ;  1. Capture the image to text string.
@@ -58,7 +58,7 @@ __New()
 __Delete()
 {
   if (this.bits.hBM)
-    DllCall("DeleteObject", "Ptr",this.bits.hBM)
+    Try DllCall("DeleteObject", "Ptr",this.bits.hBM)
 }
 
 New()
@@ -72,7 +72,7 @@ return "
 (
 ;--------------------------------
 ;  FindText - Capture screen image into text and then find it
-;  Version : 9.4  (2023-12-18)
+;  Version : 9.7  (2024-06-18)
 ;--------------------------------
 ;  returnArray:=FindText(
 ;      &OutputX --> The name of the variable used to store the returned X coordinate
@@ -116,14 +116,13 @@ return "
 ;  Example 1: FindText(&X:='wait', &Y:=3, 0,0,0,0,0,0,Text)   ; Wait 3 seconds for appear
 ;  Example 2: FindText(&X:='wait0', &Y:=-1, 0,0,0,0,0,0,Text) ; Wait indefinitely for disappear
 ;
-;  <FindMultiColor> <FindColor> : FindColor is FindMultiColor with only one point
-;  Text:='|<>##DRDGDB $ 0/0/RRGGBB1-DRDGDB1/RRGGBB2/-RRGGBB3, xn/yn/...'
+;  <FindMultiColor> or <FindColor> : FindColor is FindMultiColor with only one point
+;  Text:='|<>##DRDGDB $ 0/0/RRGGBB1-DRDGDB1/RRGGBB2, xn/yn/-RRGGBB3/RRGGBB4, ...'
 ;  Color behind '##' (0xDRDGDB) is the default allowed variation for all colors
-;  Initial point (0,0) match 0xRRGGBB1(+/-0xDRDGDB1) or 0xRRGGBB2(+/-0xDRDGDB)
-;  or not 0xRRGGBB3(+/-0xDRDGDB)
+;  Initial point (0,0) match 0xRRGGBB1(+/-0xDRDGDB1) or 0xRRGGBB2(+/-0xDRDGDB),
+;  point (xn,yn) match not 0xRRGGBB3(+/-0xDRDGDB) and not 0xRRGGBB4(+/-0xDRDGDB)
+;  Starting with '-' after a point coordinate means excluding all subsequent colors
 ;  Each point can take up to 10 sets of colors (xn/yn/RRGGBB1/.../RRGGBB10)
-;  The color starting with '-' means excluding this color
-;  If multiple colors need to be excluded, you can do this: ',xn/yn/-RRGGBB1,xn/yn/-RRGGBB2'
 ;
 ;  <FindPic> : Text parameter require manual input
 ;  Text:='|<>##DRDGDB-RRGGBB1-RRGGBB2... $ d:\a.bmp'
@@ -133,25 +132,22 @@ return "
 )"
 }
 
-FindText(OutputX:="", OutputY:=""
+FindText(&OutputX:="", &OutputY:=""
   , x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0, text:=""
   , ScreenShot:=1, FindAll:=1, JoinText:=0, offsetX:=20, offsetY:=10
   , dir:=1, zoomW:=1, zoomH:=1)
 {
-  wait:=(OutputX is VarRef) && IsSetRef(OutputX) ? %OutputX% : OutputX
-  if !IsObject(wait) && (wait ~= "i)^\s*wait[10]?\s*$")
+  if IsSet(OutputX) && (OutputX ~= "i)^\s*wait[10]?\s*$")
   {
-    time:=(OutputY is VarRef) && IsSetRef(OutputY) ? %OutputY% : OutputY
-    found:=!InStr(wait,"0"), time:=this.Floor(time)
-    , timeout:=A_TickCount+Round(time*1000)
+    found:=!InStr(OutputX, "0"), time:=this.Floor(OutputY ?? 0)
+    , timeout:=A_TickCount+Round(time*1000), OutputX:=""
     Loop
     {
       ok:=this.FindText(,, x1, y1, x2, y2, err1, err0, text, ScreenShot
         , FindAll, JoinText, offsetX, offsetY, dir, zoomW, zoomH)
       if (found && ok)
       {
-        (OutputX is VarRef) && (%OutputX%:=ok[1].x)
-        , (OutputY is VarRef) && (%OutputY%:=ok[1].y)
+        OutputX:=ok[1].x, OutputY:=ok[1].y
         return ok
       }
       if (!found && !ok)
@@ -182,14 +178,12 @@ FindText(OutputX:="", OutputY:=""
   {
     k:=Max(k, (j[7]=5 && j[8]=0 ? j[9] : j[2]*j[3]))
     if (mode)
-      v:=(mode=2 ? j[10] : i) . "", s.="|" v
+      v:=(mode=1 ? i : j[10]) . "", (mode=1 && s.="|" v)
       , (!info2.Has(v) && info2[v]:=[]), (v!="" && info2[v].Push(j))
   }
   sx:=x, sy:=y, sw:=w, sh:=h
-  , JoinText:=(mode=1 ? [s] : JoinText)
-  , s1:=Buffer(k*4), s0:=Buffer(k*4)
-  , ss:=Buffer(sw*(sh+2))
-  , FindAll:=(dir=9 ? 1 : FindAll)
+  , (mode=1 && JoinText:=[s])
+  , s1:=Buffer(k*4), s0:=Buffer(k*4), ss:=Buffer(sw*(sh+3))
   , allpos_max:=(FindAll || JoinText ? 10240 : 1)
   , ini:={ sx:sx, sy:sy, sw:sw, sh:sh, zx:zx, zy:zy
   , mode:mode, bits:bits, ss:ss.Ptr, s1:s1.Ptr, s0:s0.Ptr
@@ -226,13 +220,9 @@ FindText(OutputX:="", OutputY:=""
     if (err1!=0 || err0!=0 || arr.Length || info[1][4] || info[1][7]=5)
       Break
   }
-  if (dir=9 && arr.Length)
-    arr:=this.Sort2(arr, (x1+x2)//2, (y1+y2)//2)
   if (arr.Length)
   {
-    (OutputX is VarRef) && (%OutputX%:=arr[1].x)
-    , (OutputY is VarRef) && (%OutputY%:=arr[1].y)
-    , this.ok:=arr
+    OutputX:=arr[1].x, OutputY:=arr[1].y, this.ok:=arr
     return arr
   }
   return 0
@@ -243,12 +233,12 @@ FindText(OutputX:="", OutputY:=""
 JoinText(arr, ini, info2, text, index, offsetX, offsetY
   , FindAll, dir, minX, minY, maxY, sx, sy, sw, sh)
 {
-  if !(Len:=text.Length)
+  if !(Len:=text.Length) || !info2.Has(key:=text[index])
     return 0
   allpos:=Buffer(ini.allpos_max*4), allpos_ptr:=allpos.Ptr
   , zoomW:=ini.zoomW, zoomH:=ini.zoomH, mode:=ini.mode
-  For i,j in info2[text[index]]
-  if (mode!=2 || text[index]==j[10])
+  For i,j in info2[key]
+  if (mode!=2 || key==j[10])
   Loop this.PicFind(ini, j, dir, sx, sy, (index=1 ? sw
   : Min(sx+offsetX+Floor(j[2]*zoomW),ini.sx+ini.sw)-sx), sh, allpos_ptr)
   {
@@ -285,203 +275,224 @@ PicFind(ini, j, dir, sx, sy, sw, sh, allpos_ptr)
   static MyFunc:=""
   if (!MyFunc)
   {
-    x32:="VVdWU4PEgIO8JJQAAAAFi6wkzAAAAA+EoAoAAIu8JNAAAACF@w+O7RAAAMcEJAAA"
-    . "AADHRCQQAAAAADH@x0QkHAAAAADHRCQUAAAAAIuEJMgAAACLTCQUMfYx2wHIhe2J"
-    . "RCQMf0HplAAAAI22AAAAAA+vhCS0AAAAicGJ8Jn3@QHBi0QkDIA8GDF0TIuEJMQA"
-    . "AACDwwEDtCTkAAAAiQy4g8cBOd10VIsEJJn3vCTQAAAAg7wklAAAAAR1tQ+vhCSo"
-    . "AAAAicGJ8Jn3@Y0MgYtEJAyAPBgxdbSLRCQci5QkwAAAAIPDAQO0JOQAAACJDIKD"
-    . "wAE53YlEJBx1rAFsJBSDRCQQAYuMJOgAAACLRCQQAQwkOYQk0AAAAA+FLv@@@4tM"
-    . "JBy7rYvbaIl8JCQPr4wk1AAAAInIwfkf9+vB+gwpyouMJNgAAACJVCQYD6@PicjB"
-    . "+R@368H6DCnKiVQkKIO8JJQAAAAED4RNCgAAi4QkqAAAAIu0JKwAAAAPr4QksAAA"
-    . "AIuMJKgAAACNPLCLhCS0AAAA99iNBIGJRCQwi4QklAAAAIXAD4VWAwAAi4QkmAAA"
-    . "AIusJLgAAADHRCQsAAAAAMdEJDQAAAAAwegQD7bAiUQkDIuEJJgAAAAPtsSJRCQQ"
-    . "D7aEJJgAAACJRCQUi4QktAAAAMHgAoXtiUQkPA+OvQAAAIu0JLQAAACF9g+OlAAA"
-    . "AIu0JKQAAACLbCQ0A6wkvAAAAAH+A3wkPIl8JDgDvCSkAAAAiTwkifaNvCcAAAAA"
-    . "D7ZOAotcJAwPtkYBD7YWK0QkECtUJBSJzwHZKd+NmQAEAAAPr8APr9@B4AsPr98B"
-    . "w7j+BQAAKcgPr8IPr9AB0zmcJJwAAAAPk0UAg8YEg8UBOzQkdaqLjCS0AAAAAUwk"
-    . "NIt8JDiDRCQsAQN8JDCLRCQsOYQkuAAAAA+FQ@@@@4tEJBiJRCREi0QkKIlEJFyL"
-    . "dCQci0wkRDHAOc6LTCRcD07wiXQkHIt0JCQ5zg9PxolEJCSLdCQki0QkHDnGD03G"
-    . "iUQkFIuEJJQAAACD6ASD+AEPhnQHAADHRCRkAAAAAMdEJHAAAAAAi0QkcAOEJLQA"
-    . "AAArhCTkAAAAiUQkdItEJGQDhCS4AAAAK4Qk6AAAAIlEJEyLhCSgAAAAg+gBg@gH"
-    . "D4fpBgAAg@gDiUQkVA+O5AYAAIt0JGSLRCRwiXQkcIlEJGSLdCR0OXQkZA+P5AYA"
-    . "AItEJHSLTCQci3QkVMdEJDwAAAAAiUQkeIuEJMAAAACNBIiJRCRgifCD4AGJRCRY"
-    . "ifCD4AOJRCR8i0QkcIt0JEw58A+PAQEAAIN8JHwBi0wkZA9PTCR4iXQkQIlEJCyJ"
-    . "TCRQi0QkWIXAi0QkQA9ERCQsg3wkVAOJRCQ0D49PAgAAg7wklAAAAAWLRCRQiUQk"
-    . "OItEJDgPhFcCAACDvCSUAAAABA+EKwQAAA+vhCS0AAAAi0wkFIt0JDSFyY0sMA+E"
-    . "4AMAAIt0JFyLXCREMcCLlCS8AAAAiWwkEItMJByLfCQkiRwkiXQkDAHqi2wkFOsL"
-    . "g8ABOcUPhKUDAAA5yH0Xi5wkwAAAAIs0gwHWgD4AdQaDLCQBeBw5x37Wi5wkxAAA"
-    . "AIs0gwHWgD4BdcWDbCQMAXm+g0QkLAGDbCRAAYtEJCw5RCRMD40Z@@@@g0QkZAGD"
-    . "bCR4AYtEJGQ5RCR0D43X@v@@i0QkPIPsgFteX13CWACDvCSUAAAAAQ+EQgsAAIO8"
-    . "JJQAAAACD4QtCQAAi4QkmAAAAA+2jCScAAAAx0QkFAAAAADHRCQsAAAAAMHoEA+2"
-    . "wIkEJIuEJJgAAAAPtsSJRCQMD7aEJJgAAACJRCQQi4QknAAAAMHoEA+26IuEJJwA"
-    . "AACJ7g+v9Q+2xIl0JCCJxg+v8InID6@BiXQkCIlEJASLhCS0AAAAweACiUQkNIuE"
-    . "JLgAAACFwA+OEv3@@4uEJLQAAACFwA+OfgAAAIuUJKQAAACLXCQsA5wkvAAAAAH6"
-    . "A3wkNIl8JDgDvCSkAAAAif0PtkICMf8PtkoBKwQkD7YyD6@AOUQkIHwiK0wkDA+v"
-    . "yTlMJAh8FYnwD7bwK3QkEA+v9jl0JAQPncCJx4n4g8IEg8MBiEP@Oep1touMJLQA"
-    . "AAABTCQsi3wkOINEJBQBA3wkMItEJBQ5hCS4AAAAD4VZ@@@@6Wb8@@+NtCYAAAAA"
-    . "i0QkNIO8JJQAAAAFiUQkOItEJFCJRCQ0i0QkOA+Fqf3@@w+vhCSoAAAAi0wkNIts"
-    . "JGiF7Y0EiIlEJDAPhQUDAACLRCRsi3wkFMdEJBgAAAAAiUQkKItEJESF@4lEJEgP"
-    . "hBsBAACLfCQgjbQmAAAAAItMJBiLtCTAAAAAi0QkMAMEjou0JMQAAACNFImNHJGL"
-    . "VCQoizSOi4wkpAAAAIkUJIm0JJwAAACLtCSkAAAAD7Z0BgKJdCQMi7QkpAAAAA+2"
-    . "dAYBD7YEAYl0JBCJRCQgid7reYsEJIPGAosIi1gEiciJ38HoEMHvEA+2wCtEJAyJ"
-    . "+g+2+g+21w+224n9iVwkBDHbD6@viVQkCA+vwDnofysPtsUrRCQQidUPr+oPr8A5"
-    . "6H8Yi1QkBA+2wStEJCCJ0w+v2g+vwDnYD57DgwQkCIH5@@@@AA+XwDjYdRg5tCSc"
-    . "AAAAD4d6@@@@g2wkSAEPiIICAACDRCQYAYNEJChUi0QkGDlEJBQPhfT+@@+JfCQg"
-    . "i4Qk3AAAAINEJDwBi0wkPIXAD4TK@P@@i1QkOAOUJLAAAACLRCQ0A4QkrAAAAIu0"
-    . "JNwAAADB4hAJ0DuMJOAAAACJRI78D4yX@P@@6cL8@@+LbCQQi1QkHIXSdKSLtCS8"
-    . "AAAAi4QkwAAAAItcJGCNDC6LEIPABAHKOdjGAgB18ul8@@@@D6+EJKgAAACLdCQ0"
-    . "i1wkFI0EsIu0JKQAAACJBCQDhCSYAAAAhduJ8Q+2bAYCD7Z0BgEPtgQBiXQkDIlE"
-    . "JBAPhDj@@@+LRCRcMduJbCQYiUQkMItEJESJRCQoZpA7XCQcfWSLhCTAAAAAixQk"
-    . "i3wkGAMUmA+2dBECD7ZEEQErRCQMD7YUEStUJBCJ9QH+Kf2NvgAEAAAPr8APr@3B"
-    . "4AsPr@0Bx7j+BQAAKfAPr8IPr9AB1zu8JJwAAAB2C4NsJCgBD4iY+@@@OVwkJH5k"
-    . "i4QkxAAAAIsUJIt8JBgDFJgPtnQRAg+2RBEBK0QkDA+2FBErVCQQifUB@in9jb4A"
-    . "BAAAD6@AD6@9weALD6@9Ace4@gUAACnwD6@CD6@QAdc7vCScAAAAdwuDbCQwAQ+I"
-    . "Lvv@@4PDATlcJBQPhR@@@@@pOv7@@4t0JBSF9g+ELv7@@4t0JESLnCSkAAAAMdKQ"
-    . "i4QkwAAAAIt8JDADPJCLhCTEAAAAiyyQD7ZEOwKJ6cHpEA+2ySnID7ZMOwEPtjw7"
-    . "D6@AO0QkIH8niegPtsQpwQ+vyTtMJAh@F4n4D7b4iegPtsApxw+v@zt8JAR+B2aQ"
-    . "g+4BeBWDwgE5VCQUdZKJrCSYAAAA6ab9@@+JrCSYAAAA6Xz6@@+JfCQg6XP6@@@H"
-    . "RCRUAAAAAIt0JHSLRCRMiXQkTIlEJHSLdCR0OXQkZA+OHPn@@8dEJDwAAAAAi0Qk"
-    . "PIPsgFteX13CWACLhCSwAAAAx4QksAAAAAAAAACJRCRki4QkrAAAAMeEJKwAAAAA"
-    . "AAAAiUQkcOlr+P@@i7QkmAAAADHAhfYPlcCJRCRoD4U6AQAAi5wknAAAAIXbD4R@"
-    . "BgAAi7QknAAAAIu8JMAAAACLnCTEAAAAjQS3MfaJBCSLhCTIAAAAMdKDxwSDwwSL"
-    . "BLCJhCSYAAAAwegE9@UPr4Qk6AAAAIlUJAyZ97wk0AAAAA+vhCSoAAAAicGLRCQM"
-    . "D6+EJOQAAACZ9@2NBIGJR@yLhCSYAAAAg+APjQRGg8YViUP8OzwkdZeLhCScAAAA"
-    . "i4wk1AAAALqti9toD6@IiUQkHInIwfkf9+qJ0MH4DCnIi7QkyAAAAIlEJETHRCRc"
-    . "AAAAAMdEJCQAAAAAg8YEiXQkbOkX9@@@i4QkmAAAAMHoEA+vhCToAAAAmfe8JNAA"
-    . "AAAPr4QkqAAAAInBD7eEJJgAAAAPr4Qk5AAAAJn3@Y0EgYmEJJgAAACLRCQYiUQk"
-    . "RItEJCiJRCRc6cH2@@+LhCTQAAAAi7QkyAAAAA+2lCSYAAAAD6@FjQSGiUQkbIuE"
-    . "JJgAAADB6BAPtsiLhCSYAAAAic4Pr@GLjCTQAAAAD7bEiXQkIInGD6@widAPr8KF"
-    . "yYl0JAiJRCQED47OBAAAi3QkbI0ErQAAAACJrCTMAAAAi5wkmAAAAIu8JJwAAACL"
-    . "bCQgiUQkNDHAx0QkLAAAAADHRCQwAAAAAMdEJBwAAAAAiTQki5QkzAAAAIXSD44a"
-    . "AQAAi4wkyAAAAIs0JMdEJBQAAAAAiVwkKAHBA0QkNIlMJBCJRCQ4A4QkyAAAAIlE"
-    . "JCSLRCQQhf8PtlABD7ZIAg+2AIkUJIlEJAx0RjHSZpCLHJaJ2MHoEA+2wCnID6@A"
-    . "OcV8Iw+2xysEJA+vwDlEJAh8FA+2wytEJAwPr8A5RCQED435AAAAg8IBOfp1wolc"
-    . "JCiLRCQcweEQweACiUQkGItEJCyZ97wk0AAAAA+vhCSoAAAAicOLRCQUmfe8JMwA"
-    . "AACLVCQcjQSDi5wkwAAAAIkEk4sEJIPCAYucJMQAAACJVCQcweAICcELTCQMi0Qk"
-    . "GIkMA4NEJBAEi5Qk5AAAAItEJBABVCQUO0QkJA+FIP@@@4tcJCiLRCQ4iTQkg0Qk"
-    . "MAGLtCToAAAAi0wkMAF0JCw5jCTQAAAAD4W2@v@@i0wkHLqti9toiZwkmAAAAA+v"
-    . "jCTUAAAAx0QkXAAAAADHRCQkAAAAAInIwfkf9+rB+gwpyolUJETplPT@@5CNdCYA"
-    . "iVwkKOlr@@@@i4wktAAAAIuEJLwAAAAx7YuUJLgAAADHBCQAAAAAjQRIiUQkNInI"
-    . "weAChdKJRCQMD45A9P@@i4QktAAAAIXAfleLjCSkAAAAi0QkNAH5A3wkDI0cKIl8"
-    . "JBADvCSkAAAAD7ZRAg+2QQGDwQQPtnH8g8MBa8BLa9ImAcKJ8MHgBCnwAdDB+AeI"
-    . "Q@85+XXTA6wktAAAAIt8JBCDBCQBA3wkMIsEJDmEJLgAAAB1iouEJLQAAACLvCSc"
-    . "AAAAMfbHRCQMAAAAAIPoAYlEJCyLhCS4AAAAg+gBiUQkMIuEJLQAAACFwA+O7QAA"
-    . "AItEJAyLjCS0AAAAi6wkvAAAAIXAi0QkNA+URCQUAfGJTCQ4icONFDABy4nxK4wk"
-    . "tAAAAAHuiXQkEAHBMcCJDCTpkgAAAIB8JBQAD4WPAAAAOUQkLA+EhQAAAItMJAw5"
-    . "TCQwdHsPtjoPtmr@vgEAAAADvCSYAAAAOe9yPA+2agE573I0iwwkD7YpOe9yKg+2"
-    . "KznvciMPtmn@Oe9yGw+2aQE573ITD7Zr@znvcgsPtnMBOfcPksGJzotsJBCJ8YhM"
-    . "BQCDwAGDwgGDwwGDBCQBOYQktAAAAHQShcAPhWb@@@+LdCQQxgQGAuvYi3QkOINE"
-    . "JAwBi0QkDDmEJLgAAAAPhe7+@@+LRCQYibwknAAAAIlEJESLRCQoiUQkXOl@8v@@"
-    . "i4QkmAAAAIucJLgAAAAx7ccEJAAAAACDwAHB4AeJhCSYAAAAi4QktAAAAMHgAoXb"
-    . "iUQkDA+ONfL@@4uMJLQAAACFyX5mi4wkpAAAAIucJLwAAACJbCQUAfkDfCQMAeuL"
-    . "rCSYAAAAiXwkEAO8JKQAAAAPtlECD7ZBAQ+2MWvAS2vSJgHCifDB4AQp8AHCOdUP"
-    . "lwODwQSDwwE5+XXVi2wkFAOsJLQAAACLfCQQgwQkAQN8JDCLBCQ5hCS4AAAAD4V3"
-    . "@@@@6afx@@@HRCQoAAAAAMdEJBgAAAAAx0QkJAAAAADHRCQcAAAAAOkg8P@@x0Qk"
-    . "RAAAAADHRCQcAAAAAMdEJFwAAAAAx0QkJAAAAADpkfH@@zHAx0QkHAAAAADpIPr@"
-    . "@5CQkJCQkJCQkJCQkJCQkA=="
-    x64:="QVdBVkFVQVRVV1ZTSIHsuAAAAEiLtCQgAQAAi5wkcAEAAIP5BYmMJAABAACJ1UWJ"
-    . "xUSJjCQYAQAARIu8JHgBAAAPhDIMAABFhf8PjlASAABEiXQkEIl8JBgxwIu8JAAB"
-    . "AABEi6wkQAEAAEUx0kyLtCRgAQAAi6wkoAEAAEUx20SJZCQgx0QkCAAAAABBicTH"
-    . "RCQoAAAAAImUJAgBAABEiYQkEAEAAEiJtCQgAQAASGN0JChFMclFMcBIA7QkaAEA"
-    . "AIXbfzfrfWYPH4QAAAAAAEEPr8WJwUSJyJn3+wHBQoA8BjF0PUmDwAFJY8NBAelB"
-    . "g8MBRDnDQYkMhn5ERInQmUH3@4P@BHXID6+EJCgBAACJwUSJyJn3+0KAPAYxjQyB"
-    . "dcNIi5QkWAEAAEmDwAFJY8RBAelBg8QBRDnDiQyCf7wBXCQog0QkCAFEA5QkqAEA"
-    . "AItEJAhBOccPhVD@@@9EieFBuK2L22hEi3QkEA+vjCSAAQAARIlkJFSLrCQIAQAA"
-    . "RItkJCBEi6wkEAEAAEiLtCQgAQAAi3wkGESJXCQIicjB+R9B9+jB+gwpyouMJIgB"
-    . "AACJVCQQQQ+vy4nIwfkfQffowfoMKcqJVCQYg7wkAAEAAAQPhIMLAACLhCQoAQAA"
-    . "i5wkMAEAAA+vhCQ4AQAAjQSYi5wkKAEAAIlEJCiLhCRAAQAA99iNBIOLnCQAAQAA"
-    . "iUQkLIXbD4X6AwAAiehEi5wkSAEAAMHoEA+22EiJ6A+2xEWF24nBQA+2xYnCD44X"
-    . "BQAAi4QkQAEAAImsJAgBAABEi3wkKIusJEABAABEiXQkQESJZCRIQYnWweACx0Qk"
-    . "IAAAAADHRCQwAAAAAIlEJDiJfCRQQYnMhe0PjooAAABIY3wkMEljx0Ux20gDvCRQ"
-    . "AQAATI1UBgIPH4QAAAAAAEEPtlL+RQ+2CkEPtkL@RCnyRInJQYnQQo0UCynZRCng"
-    . "RI2KAAQAAA+vwEQPr8nB4AtED6@Juf4FAAAp0YnKQQ+v0EGNBAFBD6@QAdBBOcVC"
-    . "D5MEH0mDwwFJg8IERDndf59EA3wkOAFsJDCDRCQgAUQDfCQsi0QkIDmEJEgBAAAP"
-    . "hVP@@@+LRCQQRIt0JECLfCRQRItkJEiLrCQIAQAAiUQkWItEJBiJhCSAAAAAi1wk"
-    . "VItMJFgxwDnLi4wkgAAAAA9O2IlcJFSLXCQIOcsPT8OJRCQIi1wkCItEJFQ5ww9N"
-    . "w0GJw4uEJAABAACD6ASD+AEPhpsIAADHhCSMAAAAAAAAAMeEJKAAAAAAAAAAi4Qk"
-    . "oAAAAAOEJEABAAArhCSgAQAAiYQkpAAAAIuEJIwAAAADhCRIAQAAK4QkqAEAAIlE"
-    . "JGCLhCQYAQAAg+gBg@gHD4f+BwAAg@gDiUQkaA+O+QcAAIucJIwAAACLhCSgAAAA"
-    . "iZwkoAAAAImEJIwAAACLnCSkAAAAOZwkjAAAAA+P8wcAAIuEJKQAAABIi5wkWAEA"
-    . "AImsJAgBAABEieVFidxEibQkhAAAAMdEJEAAAAAARYnuiYQkqAAAAItEJFSJvCSI"
-    . "AAAAg+gBSI1EgwRIiUQkeEGNQ@9JifNIi7QkUAEAAEiNRIMEi1wkaEiJRCRIidiD"
-    . "4AGJRCRsidiD4AOJhCSsAAAAi4QkoAAAAIt8JGA5+A+PBQEAAIO8JKwAAAABi5wk"
-    . "jAAAAA9PnCSoAAAAiXwkUIlEJCCJXCRkDx+EAAAAAACLTCRsi0QkUIXJD0REJCCD"
-    . "fCRoA4lEJCwPj1QCAACDvCQAAQAABYtEJGSJRCQwD4RcAgAAg7wkAAEAAAQPhFQE"
-    . "AACLTCQwD6+MJEABAAADTCQsRYXkD4QJBAAARIuUJIAAAABEi0wkWDHARItEJFSL"
-    . "fCQITIusJFgBAABMi7wkYAEAAOsNSIPAAUE5xA+O0gMAAEE5wInCfhOJy0EDXIUA"
-    . "gDweAHUGQYPpAXgWOdd+1YnKQQMUh4A8FgF1yUGD6gF5w4NEJCABg2wkUAGLRCQg"
-    . "OUQkYA+NJv@@@4OEJIwAAAABg6wkqAAAAAGLhCSMAAAAOYQkpAAAAA+NxP7@@4tE"
-    . "JEBIgcS4AAAAW15fXUFcQV1BXkFfw4O8JAABAAABD4S3CwAAg7wkAAEAAAIPhIcJ"
-    . "AABIiehEi4QkSAEAAEEPts0PtsSJ60GJzEGJw0APtsXB6xCJRCQgRInoD7bbwegQ"
-    . "x0QkMAAAAADHRCQ4AAAAAA+20EyJ6A+2xEGJ1onHD6@4i4QkQAEAAEQPr@JEjTyF"
-    . "AAAAAEQPr+FFhcAPjrkAAACJrCQIAQAAi6wkQAEAAESJrCQQAQAARYndhe1+b0hj"
-    . "RCQoTGNcJDhFMcBMA5wkUAEAAEiNVAYCDx+EAAAAAAAPtgJFMdIPtkr@RA+2Sv4p"
-    . "2A+vwEE5xnwaRCnpD6@JOc98EEQrTCQgRQ+vyUU5zEEPncJHiBQDSYPAAUiDwgRE"
-    . "OcV@vEQBfCQoAWwkOItUJCyDRCQwAQFUJCiLRCQwOYQkSAEAAA+Fb@@@@4usJAgB"
-    . "AABEi6wkEAEAAItEJBCJRCRYi0QkGImEJIAAAADp6@v@@4tEJCyDvCQAAQAABYlE"
-    . "JDCLRCRkiUQkLA+FpP3@@4tEJDCLfCQsD6+EJCgBAACLlCSQAAAAhdKNBLiJRCQ4"
-    . "D4VVAwAARYXkD4RRAQAASIu8JGABAABIi4QkWAEAAESLrCSEAAAASIm0JJgAAADH"
-    . "RCQoAAAAAESJpCSUAAAASIl8JBBIi3wkcEiJxkiJfCQYi3wkWIl8JFyLvCSIAAAA"
-    . "i0QkOAMGSItcJBBEi0QkKEiLVCQYjUgBRIszRI1IAkiYSGPJTWPJRQ+2JANBD7Yc"
-    . "C0cPthQLQYnZ63QPH0QAAItKBIsaQYPAAkGJzYnYD7b9wegQQcHtEA+26UUPtu0P"
-    . "tsAxyUQp0EWJ7w+vwEUPr@1EOfh@KA+2x0GJ@0QpyA+vwEQPr@9EOfh@Ew+2w4np"
-    . "RCngD6@ND6@AOcgPnsFIg8IIgfv@@@8AD5fAOMh1EEU5xneMg2wkXAEPiBADAABI"
-    . "g8YESINEJBAEg0QkKBVIg0QkGFRIO3QkSA+FIf@@@0SLpCSUAAAASIu0JJgAAABE"
-    . "iawkhAAAAIm8JIgAAABmkINEJEABSIO8JJABAAAAi3wkQA+Emvz@@4tEJDADhCQ4"
-    . "AQAASGPXi0wkLAOMJDABAABIi5wkkAEAAMHgEAnIO7wkmAEAAIlEk@wPjGP8@@@p"
-    . "mvz@@4tEJFSFwHSkSIuEJFgBAABMi0QkeA8fgAAAAACJygMQSIPABEw5wMYEFgB1"
-    . "7+l6@@@@i0QkMIt8JCwPr4QkKAEAAI0EuInBA4QkCAEAAEWF5I1QAkhj0kEPthwT"
-    . "jVABSJhBD7YEA0hj0kEPtjwTQYn9D4Q1@@@@i7wkgAAAAIlsJBhFMcmJzUGJx0iJ"
-    . "dCQ4iXwkEIt8JFiJfCQoi3wkVEQ5z0WJyn5uSIuEJFgBAABCixSIAeqNQgJImEEP"
-    . "tgwDjUIBSGPSQQ+2FBNImEEPtgQDic4B2USNgQAEAAAp3kQp+kQPr8ZEKegPr8BE"
-    . "D6@GweALQQHAuP4FAAApyA+vwg+v0EEB0EU58HYLg2wkKAEPiEcBAABEOVQkCH5w"
-    . "SIuEJGABAABCixSIAeqNQgJImEEPtgwDjUIBSGPSQQ+2FBNImEEPtgQDQYnKAdlE"
-    . "jYEABAAAQSnaRCn6RQ+vwkQp6A+vwEUPr8LB4AtBAcC4@gUAACnID6@CD6@QQQHQ"
-    . "RTnwdwuDbCQQAQ+I0AAAAEmDwQFFOcwPjwb@@@+LbCQYSIt0JDjpBf7@@0WF5A+E"
-    . "@P3@@0SJdCQoRItMJFgxyUSLrCSEAAAAi7wkiAAAAESLVCQ4TIu0JFgBAABMi7wk"
-    . "YAEAAEGLFI5BixyPRAHSQYnYjUICQcHoEEUPtsBImEEPtgQDRCnARI1CAUhj0g+v"
-    . "wEEPthQTTWPARw+2BANEOeh@HQ+2x0EpwEUPr8BBOfh@Dg+2wynCD6@SOep+CGaQ"
-    . "QYPpAXgoSIPBAUE5zH+ViZwkCAEAAESLdCQo6VD9@@+LbCQYSIt0JDjp9Pn@@4mc"
-    . "JAgBAABEi3QkKOnj+f@@RImsJIQAAACJvCSIAAAARIukJJQAAABIi7QkmAAAAOm@"
-    . "+f@@x0QkaAAAAACLnCSkAAAAi0QkYIlcJGCJhCSkAAAAi5wkpAAAADmcJIwAAAAP"
-    . "jg34@@@HRCRAAAAAAOm8+f@@i4QkOAEAAMeEJDgBAAAAAAAAiYQkjAAAAIuEJDAB"
-    . "AADHhCQwAQAAAAAAAImEJKAAAADpRPf@@zHAhdIPlcCJhCSQAAAAD4UTAQAARTHJ"
-    . "RTHbRYXATIuUJGgBAAAPhEkGAABBiyox0kmDwlSJ6MHoBPfzD6+EJKgBAACJ0ZlB"
-    . "9@8Pr4QkKAEAAEGJwIuEJKABAAAPr8FIi4wkWAEAAJn3+0GNBIBCiQSJiehIi4wk"
-    . "YAEAAIPgD0GNBENBg8MVQokEiUmDwQFFOc13mIuMJIABAAC6rYvbaESJbCRUQQ+v"
-    . "zYnIwfkf9+qJ0MH4DCnISIucJGgBAACJRCRYx4QkgAAAAAAAAADHRCQIAAAAAEiD"
-    . "wwRIiVwkcOkB9v@@iejB6BAPr4QkqAEAAJlB9@8Pr4QkKAEAAInBD7fFD6+EJKAB"
-    . "AACZ9@uNLIGLRCQQiUQkWItEJBiJhCSAAAAA6b31@@+J2EEPr8fB4AJImEgDhCRo"
-    . "AQAASIlEJHCJ0A+20sHoEEGJ1A+2yEiJ6A+2xEGJzonHRA+v8Q+v+EQPr+JFhf8P"
-    . "juAEAACNQ@9Ii0wkcEGNUP@HRCQoAAAAAMdEJBAAAAAASI0EhQYAAADHRCQYAAAA"
-    . "AESJhCQQAQAATI1UkQQx0onpSIlEJCCNBJ0AAAAAQYnVSIm0JCABAACJnCRwAQAA"
-    . "iUQkLESJvCR4AQAAi7QkcAEAAIX2D47tAAAASGNEJBhIi7QkaAEAAEiNXAYCSANE"
-    . "JCBIAfAx9kiJRCQIDx9AAIusJBABAABED7YDRA+2S@9ED7Zb@oXtdEBIi1QkcGaQ"
-    . "iwqJyMHoEA+2wEQpwA+vwEE5xnwbD7bFRCnID6@AOcd8Dg+2wUQp2A+vwEE5xH1a"
-    . "SIPCBEw50nXHi0QkKE1j@UHB4BBBweEIQYPFAUUJyJlFCdj3vCR4AQAAD6+EJCgB"
-    . "AACJxYnwmfe8JHABAABIi5QkWAEAAI1EhQBCiQS6SIuEJGABAABGiQS4SIPDBAO0"
-    . "JKABAABIOVwkCA+FQP@@@4t0JCwBdCQYg0QkEAGLnCSoAQAAi0QkEAFcJCg5hCR4"
-    . "AQAAD4Xj@v@@RIlsJFSJzYtMJFQPr4wkgAEAALqti9toRIusJBABAABIi7QkIAEA"
-    . "AMeEJIAAAAAAAAAAx0QkCAAAAACJyMH5H@fqwfoMKcqJVCRY6aTz@@+LhCRAAQAA"
-    . "RIuMJEgBAABFMdsx2wHASJhIA4QkUAEAAEWFyUiJRCQwi4QkQAEAAESNPIUAAAAA"
-    . "D45k9@@@iXwkIIu8JEABAACF@35PSGNEJChMY9NMA1QkMEUxwEiNTAYCD7YRD7ZB"
-    . "@0iDwQRED7ZJ+mvAS2vSJgHCRInIweAERCnIAdDB+AdDiAQCSYPAAUQ5x3@NRAF8"
-    . "JCgB+0GDwwGLTCQsAUwkKEQ5nCRIAQAAdZdIY4QkQAEAALoBAAAASIm0JCABAACL"
-    . "tCRAAQAAi3wkIEUx28dEJCwAAAAASI1YAUgpwouEJEABAABIiVQkQEiJXCQ4g+gB"
-    . "iUQkKIuEJEgBAACD6AGJRCQghfYPjt8AAABMY0wkLEiLTCQ4RYXbSItEJDBMi5Qk"
-    . "UAEAAA+Uw06NBAlIi0wkQEqNVAgBTQHKSQHATAHJSAHBMcDpjgAAAITbD4WOAAAA"
-    . "OUQkKA+EhAAAAEQ5XCQgdH1ED7Zq@0QPtnr+QbkBAAAAQQHtRTn9ckVED7Y6RTn9"
-    . "cjxED7Z5@0U5@XIyRQ+2eP9FOf1yKEQPtnn+RTn9ch5ED7Y5RTn9chVFD7Z4@kU5"
-    . "@XILRQ+2CEU5zUEPksFFiAwCSIPAAUiDwgFJg8ABSIPBATnGfg+FwA+Fav@@@0HG"
-    . "BAIC690BdCQsQYPDAUQ5nCRIAQAAD4UH@@@@i0QkEEiLtCQgAQAAiUQkWItEJBiJ"
-    . "hCSAAAAA6YLx@@+NRQFEi5QkSAEAAEUx2zHbweAHicWLhCRAAQAARYXSRI08hQAA"
-    . "AAAPjlL1@@9EiXQkIESLtCRAAQAARYX2flNIY0QkKExj00wDlCRQAQAARTHASI1M"
-    . "BgIPthEPtkH@RA+2Sf5rwEtr0iYBwkSJyMHgBEQpyAHQOcVDD5cEAkmDwAFIg8EE"
-    . "RTnGf81EAXwkKEQB80GDwwGLTCQsAUwkKEQ5nCRIAQAAdZKLRCQQRIt0JCCJRCRY"
-    . "i0QkGImEJIAAAADpvfD@@8dEJBgAAAAAx0QkEAAAAADHRCQIAAAAAMdEJFQAAAAA"
-    . "6Qbv@@@HRCRYAAAAAMeEJIAAAAAAAAAAx0QkVAAAAADHRCQIAAAAAOmX8P@@McDH"
-    . "RCRUAAAAAOkz+v@@kJCQkA=="
-    this.MCode(&MyFunc, StrReplace((A_PtrSize=8?x64:x32),"@","/"))
+    x32:="VVdWU4HskAAAAIuEJKQAAACLvCSoAAAAi6wk3AAAAMcEJAAAAACD6AGD+AQPh48F"
+    . "AACDvCSkAAAABQ+EkQUAAIuEJOAAAACFwA+ONA0AADHAibwkqAAAAMcEJAAAAADH"
+    . "RCQUAAAAAMdEJAwAAAAAicfHRCQYAAAAAI20JgAAAACLhCTYAAAAi0wkGDH2MdsB"
+    . "yIXtiUQkCH896ZAAAABmkA+vhCTEAAAAicGJ8Jn3@QHBi0QkCIA8GDF0TIuEJNQA"
+    . "AACDwwEDtCT4AAAAiQy4g8cBOd10VIsEJJn3vCTgAAAAg7wkpAAAAAR1tQ+vhCS4"
+    . "AAAAicGJ8Jn3@Y0MgYtEJAiAPBgxdbSLRCQMi5Qk0AAAAIPDAQO0JPgAAACJDIKD"
+    . "wAE53YlEJAx1rAFsJBiDRCQUAYuMJPwAAACLRCQUAQwkOYQk4AAAAA+FMv@@@4tM"
+    . "JAy7rYvbaIn+D6+MJOQAAACJfCQ0i7wkqAAAAInIwfkf9+vB+gwpyouMJOgAAACJ"
+    . "VCRID6@OicjB+R@368H6DCnKiVQkTIO8JKQAAAAED4TGCAAAi4QkzAAAAAOEJMQA"
+    . "AACLtCS8AAAAi4wkuAAAAIlEJCiLhCS4AAAAD6+EJMAAAACNNLCLhCTEAAAA99iD"
+    . "vCSkAAAAAY0EgYlEJDgPhKAJAACDvCSkAAAAAg+EIgcAAIuUJMgAAACF0g+O9wcA"
+    . "AIuMJMQAAACLRCQoifXHBCQAAAAAx0QkCAAAAACJvCSoAAAAjQRIiUQkHInIweAC"
+    . "iUQkFIuEJMQAAACFwH5ai4wktAAAAItcJByLvCS0AAAAA1wkCAHpA2wkFAHvjXYA"
+    . "D7ZRAoPBBIPDAWvyJg+2Uf1rwkuNFAYPtnH8ifDB4AQp8AHQwfgHiEP@Ofl10ou0"
+    . "JMQAAAABdCQIgwQkAQNsJDiLBCQ5hCTIAAAAdYeLhCTEAAAAi5QkrAAAADHtMfaD"
+    . "6AGJRCQUi4QkyAAAAIPoAYlEJBiLhCTEAAAAhcAPjuIAAACLvCTEAAAAi0QkHAH3"
+    . "jQwwifuJfCQgiccB2InzK5wkxAAAAIkEJDHAAfuLfCQoAfeLNCSJHCSJfCQIjXYA"
+    . "hcAPhJQQAAA5RCQUD4SKEAAAhe0PhIIQAAA5bCQYD4R4EAAAD7YRD7Z5@7sBAAAA"
+    . "A5QkqAAAADn6ckUPtnkBOfpyPYs8JA+2Pzn6cjMPtj45+nIsizwkD7Z@@zn6ciGL"
+    . "PCQPtn8BOfpyFg+2fv85+nIOD7ZeATnaD5LDkI10JgCLfCQIiBwHg8ABg8EBg8YB"
+    . "gwQkATmEJMQAAAAPhV@@@@+LdCQgg8UBOawkyAAAAA+F@@7@@4u8JKgAAACJlCSs"
+    . "AAAAi4QkxAAAAMdEJBQAAAAAx0QkGAAAAACJvCSoAAAAg+gBiUQkCJCNtCYAAAAA"
+    . "i4QkxAAAAIXAD468BQAAi0QkGItcJCgxyYuUJMwAAAC@AwAAAAHDAdAPtjOJBCTr"
+    . "aY1W@7gCAAAAg@oBdhOD@wEPlMKD@QEPlMAJ0A+2wAHAgeb9AAAAugEAAAB0EoX@"
+    . "D5TChe2J1w+UwonWCfeJ+os8JAnQiAQPg8EBOYwkxAAAAA+EOAUAAIXJD7ZzAQ+E"
+    . "PA8AAA+2O4PDATtMJAgPhFkOAAAPtmsBi4Qk7AAAAIXAD4V6@@@@jUb@g@gCGcCD"
+    . "4AKB5v0AAAAPlMLro4t0JCiLbCQsx0QkbAAAAADHRCRoAQAAAMdEJEQAAAAAx0Qk"
+    . "YAAAAACJ8I1eAY1VAcHoH4lsJDjHBCQAAAAAAfDR+IlEJBiJ6MHoHwHo0fiJRCQc"
+    . "ifCJ3g+v8o1ICYl0JHyJxonog8AJOdOJdCQ8D0@Bi3QkfInBD6@IOXQkbImMJIAA"
+    . "AAB9TYu0JIAAAAA5dCRgx0QkZAAAAAB9OItMJGg5TCRkD4wRCAAAi3QkRINEJGAB"
+    . "ifCD4AEBwYnwi3QkfIPAAYlMJGiD4AM5dCRsiUQkRHyziwQkgcSQAAAAW15fXcJc"
+    . "ADHAhf8PlcCJRCRcD4TNBAAAi4Qk4AAAAIu0JNgAAACJ+cHpEIn7D7bJD7bTD6@F"
+    . "jQSGic4Pr@GJRCQkifgPtsSJdCQwicYPr@CJ0A+vwol0JASJRCQQi4Qk4AAAAIXA"
+    . "D466CAAAi3QkJI0ErQAAAACJ+4msJNwAAACLvCSsAAAAi2wkMIlEJDwxwMdEJCwA"
+    . "AAAAx0QkNAAAAADHRCQMAAAAAIk0JIu0JNwAAACF9g+OGAEAAIuMJNgAAACLNCTH"
+    . "RCQYAAAAAIlcJCABwQNEJDyJTCQUiUQkOAOEJNgAAACJRCQoi0QkFIX@D7ZQAQ+2"
+    . "SAIPtgCJFCSJRCQIdEQx0osclonYwegQD7bAKcgPr8A5xXwjD7bHKwQkD6@AOUQk"
+    . "BHwUD7bDK0QkCA+vwDlEJBAPjRkDAACDwgE5+nXCiVwkIItEJAzB4RDB4AKJRCQc"
+    . "i0QkLJn3vCTgAAAAD6+EJLgAAACJw4tEJBiZ97wk3AAAAItUJAyNBIOLnCTQAAAA"
+    . "iQSTiwQkg8IBi5wk1AAAAIlUJAzB4AgJwQtMJAiLRCQciQwDg0QkFASLlCT4AAAA"
+    . "i0QkFAFUJBg7RCQoD4Ui@@@@i1wkIItEJDiJNCSDRCQ0AYu0JPwAAACLTCQ0AXQk"
+    . "LDmMJOAAAAAPhbj+@@+LTCQMuq2L22iJ3w+vjCTkAAAAx0QkFAAAAADHRCQ0AAAA"
+    . "AInIwfkf9+rB+gwpyolUJAiLdCQMi0wkCDHAOc6LTCQUD07wiXQkDIt0JDQ5zg9P"
+    . "xolEJDSLhCTEAAAAK4Qk+AAAAIlEJCiLhCTIAAAAK4Qk@AAAAIO8JKQAAAADiUQk"
+    . "LA+O4gEAAIuMJMQAAACLhCTMAAAAD6+MJMgAAACJygHChcl+CsYAAYPAATnCdfaD"
+    . "vCSwAAAACQ+EcPz@@4uEJLAAAACD6AGD+AcPh64BAACD+AOJRCRAD46pAQAAi0Qk"
+    . "KMdEJFAAAAAAxwQkAAAAAIlEJDiLRCQsiUQkPIt0JFA5dCQ4x0QkWAAAAAAPjO@8"
+    . "@@+LdCRYOXQkPA+M9wUAAItMJFCLdCRAi0QkOCnI98YCAAAAD0TBi0wkWInCi0Qk"
+    . "PCnI98YBAAAAD0TBg@4DidEPT8gPT8KJTCQciUQkGOnBBAAAjUcBxwQkAAAAAMdE"
+    . "JAgAAAAAweAHiceLhCTEAAAAweACiUQkGIuEJMgAAACFwA+OsAAAAIuEJMQAAACF"
+    . "wH5ci4wktAAAAItcJCiLrCS0AAAAA1wkCAHxA3QkGIl0JBQB9Q+2UQIPtkEBD7Yx"
+    . "a8BLa9ImAcKJ8MHgBCnwAdA5xw+XA4PBBIPDATnpddWLjCTEAAAAAUwkCIt0JBSD"
+    . "BCQBA3QkOIsEJDmEJMgAAAB1hekb+v@@kI20JgAAAACLtCTEAAAAAXQkGINEJBQB"
+    . "i0QkFDmEJMgAAAAPjx@6@@+LvCSoAAAAi0QkSIlEJAiLRCRMiUQkFOnU@f@@jXYA"
+    . "iVwkIOlL@f@@g7wk7AAAAAGDnCS8AAAA@+kx@v@@x0QkQAAAAACLRCQsx0QkUAAA"
+    . "AADHBCQAAAAAiUQkOItEJCiJRCQ86VL+@@+J+MHoEA+vhCT8AAAAmfe8JOAAAAAP"
+    . "r4QkuAAAAInBD7fHD6+EJPgAAACZ9@2NPIGLRCRIiUQkCItEJEyJRCQU6UL9@@+L"
+    . "hCSsAAAAhcAPhCMEAACLjCSsAAAAi7Qk0AAAAIuEJNQAAACLnCTYAAAAiawk3AAA"
+    . "AI08jjHJicWJfCQIizuDxgSDw1iDxQSJ+MHoEA+vhCT8AAAAmfe8JOAAAAAPr4Qk"
+    . "uAAAAIkEJA+3xw+vhCT4AAAAmfe8JNwAAACLFCSNBIKJRvyLQ6yNBEGDwRaJRfw5"
+    . "dCQIdaeLhCSsAAAAi4wk5AAAALqti9toD6@IiUQkDInIwfkf9+qJ0MH4DCnIi7Qk"
+    . "2AAAAIlEJAjHRCQUAAAAAMdEJDQAAAAAg8YIiXQkJOld@P@@i4Qk4AAAAIucJMgA"
+    . "AADRpCSsAAAAx0QkLAAAAADHRCQ8AAAAAA+vxQOEJNgAAACJRCQki4QkxAAAAMHg"
+    . "AoXbiUQkVA+OK@7@@4m8JKgAAACLfCRci4wkxAAAAIXJD474AAAAi0QkKANEJDyL"
+    . "nCS0AAAAiceLRCRUAfOJ3QHwif6JRCRAA4QktAAAAIlEJCDrE8YGAIPFBIPGATts"
+    . "JCAPhKgAAAAPtkUCMf+JBCQPtkUBiUQkFA+2RQCJRCQYObwkrAAAAHbLi0QkJIsU"
+    . "uIPHAotMuPwPtt4rXCQUidDB6BAPtsArBCSJXCQID7baK1wkGIH6@@@@AIlcJBwP"
+    . "hosAAACLFCSNHFCNkwAEAAAPr9APr8KLVCQID6@SweILAdC6@gUAACnaidOLVCQc"
+    . "D6@aD6@ajRQYOdFyhMYGAYPFBIPGATtsJCAPhVj@@@+LjCTEAAAAAUwkPIt0JECD"
+    . "RCQsAQN0JDiLRCQsOYQkyAAAAA+F3@7@@4l8JFyLvCSoAAAA6dr2@@+NtCYAAAAA"
+    . "icrB6hAPttoPttUPtsmJVCQEidqJXCQwD6@AiUwkEA+v0znQD48H@@@@i1wkCItM"
+    . "JASJ2InKD6@DD6@ROdAPj+3+@@+LVCQci0wkEInTicgPr9oPr8E5ww+P0@7@@+lK"
+    . "@@@@x0QkTAAAAADHRCRIAAAAAMdEJDQAAAAAx0QkDAAAAADp7vP@@4tEJBiFwA+I"
+    . "5gAAAIt0JDw58A+P2gAAAItEJByFwA+IzgAAAIt0JDg58A+PwgAAAINEJGwBx0Qk"
+    . "QAkAAACLRCQci7QkzAAAAA+vhCTEAAAAA0QkGIA8BgAPhIMAAACLTCQ0i3QkDDnx"
+    . "D03xg7wkpAAAAAOJdCQgD48UAQAAhfYPhAQEAAADhCTMAAAAi1wkFDHSi3QkCInB"
+    . "6yo5VCQ0fheLrCTUAAAAi0SVAAHI9gABdQWD6wF4KoPCATlUJCAPhMUDAAA7VCQM"
+    . "fdCLrCTQAAAAi0SVAAHIgDgBd76D7gF5uYN8JEAJdAqDRCRYAek4+v@@i2wkRIXt"
+    . "dC6DfCREAQ+EFQUAAIN8JEQCD4QABQAAMcCDfCREAw+UwClEJBiDRCRkAem59v@@"
+    . "g2wkHAHr74NEJFAB6dv5@@8xwMdEJAwAAAAA6X38@@+LhCTEAAAAK4Qk+AAAAMdE"
+    . "JAgAAAAAx0QkNAAAAADHRCQUAAAAAMdEJAwAAAAAiUQkKIuEJMgAAAArhCT8AAAA"
+    . "iUQkLOkO+f@@i0QkHAOEJMAAAAAPr4QkuAAAAItUJBgDlCS8AAAAg7wkpAAAAAWN"
+    . "BJCJRCRID4RTAQAAi7QktAAAAAH4i1QkIA+2dAYChdKJdCRMi7QktAAAAA+2dAYB"
+    . "iXQkVIu0JLQAAAAPtgQGiUQkcA+EiAIAAItEJBSJvCSoAAAAMe2J94lEJHiLRCQI"
+    . "iUQkdOt+jXYAjbwnAAAAADlsJDR+YYuEJNQAAACLVCRIi1wkTAMUqA+2TBcCD7ZE"
+    . "FwErRCRUD7YUFytUJHCJzgHZKd6NmQAEAAAPr8APr97B4AsPr94Bw7j+BQAAKcgP"
+    . "r8IPr8IBwzmcJKwAAAByB4NsJHgBeHyDxQE5bCQgD4TmAQAAO2wkDH2Gi4Qk0AAA"
+    . "AItUJEiLXCRMAxSoD7ZMFwIPtkQXAStEJFQPthQXK1QkcInOAdkp3o2ZAAQAAA+v"
+    . "wA+v3sHgCw+v3gHDuP4FAAApyA+vwg+vwgHDOZwkrAAAAA+DKP@@@4NsJHQBD4kd"
+    . "@@@@i7wkqAAAAOnK@f@@i3QkXIX2D4VcAgAAi1wkIIXbD4RaAQAAi4Qk0AAAAItc"
+    . "JCQx9om8JKgAAACJRCRMi4Qk1AAAAIlEJFRrRCQgFolEJHiLRCQIiUQkdIt8JEyL"
+    . "RCRIifWJ2YlcJHADB4s7iXwkIIt8JFSLP4m8JKwAAACLvCS0AAAAD7Z8BwKJvCSE"
+    . "AAAAi7wktAAAAA+2fAcBibwkiAAAAIu8JLQAAAAPtgQHiYQkjAAAAOl9AAAAjXYA"
+    . "iwGLeQSDxQLB7xCJwsHqEIn7D7b7D7bSi1kEK5QkhAAAAIl8JDAPr@8Ptt+JXCQE"
+    . "D7ZZBA+v0jn6iVwkEH84i1wkBA+21CuUJIgAAACJ3w+v0g+v+zn6fx6LXCQQD7bA"
+    . "K4QkjAAAAInaD6@AD6@TOdAPjvIBAACDwQg7rCSsAAAAD4J5@@@@gXwkIP@@@wCL"
+    . "XCRwdwuDbCR0AQ+Io@7@@4NEJEwEg8NYg0QkVASDxhY5dCR4D4Xh@v@@i7wkqAAA"
+    . "AIuEJPAAAACDBCQBhcB0NotUJBwDlCTAAAAAi0QkGAOEJLwAAACLNCSLjCTwAAAA"
+    . "weIQCdA7tCT0AAAAiUSx@A+NS@P@@4t0JBwxyYnwK4Qk@AAAAIPAAYnCifCLtCT8"
+    . "AAAAD0jRjUQw@4t0JCw58A9Pxot0JBiJxYnwK4Qk+AAAAIPAAYnDifCLtCT4AAAA"
+    . "D0jZjUQw@4t0JCg5xg9OxjnqicYPj6@7@@+LhCTEAAAAD6@CA4QkzAAAAInBjUUB"
+    . "jW4BiUQkIDnzfw2J2MYEAQCDwAE56HX1g8IBA4wkxAAAADtUJCB13+ls+@@@vQMA"
+    . "AADpofH@@4tMJCCFyQ+E@v7@@4tsJAgx9ou8JNAAAACLRCRIAwS3i7wk1AAAAIsc"
+    . "t4u8JLQAAAAPtkwHAonaweoQD7bSKdEPtlQHAQ+2@w+vySn6i7wktAAAAA+2BAcP"
+    . "tvsp+DlMJDB8Eg+v0jlUJAR8CQ+vwDlEJBB9BYPtAXgQg8YBOXQkIHWPid@pgP7@"
+    . "@4nf6dH6@@+DRCQcAekE+@@@g0QkGAHp+vr@@4t8JAjGBAcC6d7v@@+BfCQg@@@@"
+    . "AItcJHAPhxr+@@@pIP7@@78DAAAA6b3w@@+QkJCQkJA="
+    x64:="QVdBVkFVQVRVV1ZTSIHsqAAAAEUx5ESLrCQwAQAAi5wkYAEAAImMJPAAAACLhCTw"
+    . "AAAAidFEiYQkAAEAAESJjCQIAQAAi7wkaAEAAIPoAYP4BA+HxwUAAIO8JPAAAAAF"
+    . "D4TQBQAAhf8PjgoNAABEiXwkMESLnCTwAAAARTHkTIu8JFABAACLrCSYAQAAMfZF"
+    . "MfbHRCQcAAAAAESJVCQgRIlkJBCJlCT4AAAADx9EAABMY1QkHEUxyUUxwEwDlCRY"
+    . "AQAAhdt@Net6Dx+AAAAAAEEPr8WJwUSJyJn3+wHBQ4A8AjF0PEmDwAFJY8ZBAelB"
+    . "g8YBRDnDQYkMh35DifCZ9@9Bg@sEdckPr4QkGAEAAInBRInImff7Q4A8AjGNDIF1"
+    . "xEiLlCRIAQAASYPAAUljxEEB6UGDxAFEOcOJDIJ@vQFcJByDRCQQAQO0JKABAACL"
+    . "RCQQOccPhVX@@@9FieBBua2L22hEi1QkIEQPr4QkcAEAAESLfCQwi4wk+AAAAESJ"
+    . "ZCQsRInAQcH4H0H36YnQwfgMRCnARIuEJHgBAACJRCRMRQ+vxkSJwEHB+B9B9+nB"
+    . "+gxEKcKJVCRQg7wk8AAAAAQPhJcIAABJY+2LtCQgAQAASInoSAOEJEABAABIiUQk"
+    . "OIuEJBgBAAAPr4QkKAEAAI0EsIu0JBgBAACJRCQgRIno99iDvCTwAAAAAY0EholE"
+    . "JEAPhGEJAACDvCTwAAAAAg+EWgcAAESLjCQ4AQAARYXJD473AgAAQ41EbQBEiXQk"
+    . "HESLdCQgRo0krQAAAAAx9jH@SJhIA4QkQAEAAEiJRCQQRYXtfllIi5wkEAEAAElj"
+    . "xkUxyUyNRAMCSGPfSANcJBBBD7YQSYPABERr2iZBD7ZQ+2vCS0GNFANFD7ZY+kSJ"
+    . "2MHgBEQp2AHQwfgHQogEC0mDwQFFOc1@yEUB5kQB74PGAUQDdCRAObQkOAEAAHWR"
+    . "SI1FAUSLdCQci5QkAAEAADHbx0QkHAAAAABIiUQkILgBAAAASCnoQY1t@0SJdCRA"
+    . "SIlEJDCLhCQ4AQAARI1g@0WF7Q+OzgAAAEhjdCQcSIt8JCBIi0QkEEyNHDdIi3wk"
+    . "MEyNRDABSQHDTI0MN0iLfCQ4SQHBMcBMjTQ3Dx9EAABIhcAPhOoQAAA5xQ+E4hAA"
+    . "AIXbD4TaEAAAQTncD4TREAAAQQ+2UP9BD7Zw@r8BAAAAAco58nI+QQ+2MDnycjZB"
+    . "D7Zx@znyci1BD7Zz@znyciRBD7Zx@jnychtBD7YxOfJyE0EPtnP+OfJyCkEPtjM5"
+    . "8kAPksdBiDwGSIPAAUmDwAFJg8MBSYPBAUE5xQ+Pbv@@@0QBbCQcg8MBOZwkOAEA"
+    . "AA+FGf@@@0SLdCRAiZQkAAEAAESJdCQQRIl8JCBBjW3@TIt0JDhEi7wkOAEAAEUx"
+    . "5Iu0JIABAAAx@0SJVCQciYwk+AAAAGYuDx+EAAAAAABFhe0PjsIAAABMY88xyUG7"
+    . "AwAAAEcPthQOT41EDgFMA4wkQAEAAOttDx+EAAAAAABBjVL@uAIAAACD+gF2FEGD"
+    . "+wEPlMKD+wEPlMAJ0A+2wAHAQYHi@QAAALoBAAAAdA9FhdtBD5TChdsPlMJECdKD"
+    . "wQEJ0EE5zUGIAXRMhclFD7YQD4SfDwAARQ+2WP9Jg8ABSYPBATnpD4SmDgAAQQ+2"
+    . "GIX2dYtBjUL@g@gCGcCD4AJBgeL9AAAAD5TCg8EBCdBBOc1BiAF1tEQB70GDxAFF"
+    . "OecPjyj@@@9Ei3QkEESLVCQcRIt8JCCLjCT4AAAAi0QkTIlEJBCLRCRQiUQkHOkV"
+    . "AwAAi3wkQItcJDjHRCR4AAAAAMdEJHQBAAAAx0QkSAAAAADHRCRsAAAAAIn4RI1P"
+    . "AY1TAcHoH4lcJEQB+NH4iUQkIInYwegfAdjR+IlEJDCJ+ESJzw+v+kSNQAlBOdGJ"
+    . "vCSIAAAAiceNQwmJfCRMi7wkiAAAAEEPT8BFMeSJxg+v8Dl8JHiJtCSMAAAAfVCL"
+    . "vCSMAAAAOXwkbMdEJHAAAAAAfTuLXCR0OVwkcA+MpgcAAIt8JEiDRCRsAYn4g+AB"
+    . "AcOJ+Iu8JIgAAACDwAGJXCR0g+ADOXwkeIlEJEh8sESJ4EiBxKgAAABbXl9dQVxB"
+    . "XUFeQV@DMcCF0g+VwIlEJGgPhFkEAACJ+EGJ0g+20g+vw0HB6hBFD7bSweACSJhI"
+    . "A4QkWAEAAEUPr9JIiUQkCA+2xUGJx0QPr@iJ0A+vwoX@iUQkKA+OZAgAAIu0JAAB"
+    . "AACNQ@+JvCRoAQAAi3wkKESJrCQwAQAASI0EhQYAAADHRCQcAAAAAMdEJCAAAAAA"
+    . "jVb@SIt0JAjHRCQsAAAAAEiJRCQwjQSdAAAAAImcJGABAABIjXSWBDHSiUQkQEGJ"
+    . "1YusJGABAACF7Q+O+QAAAEhjRCQsSIucJFgBAAAx7UiNXAMCSANEJDBIA4QkWAEA"
+    . "AEiJRCQQZi4PH4QAAAAAAESLpCQAAQAARA+2A0QPtkv@RA+2W@5FheR0PkiLVCQI"
+    . "iwqJyMHoEA+2wEQpwA+vwEE5wnwbD7bFRCnID6@AQTnHfA0PtsFEKdgPr8A5x31b"
+    . "SIPCBEg58nXHi0QkHE1j9UHB4BBBweEIQYPFAUUJyJlFCdj3vCRoAQAAD6+EJBgB"
+    . "AABBicSJ6Jn3vCRgAQAASIuUJEgBAABBjQSEQokEskiLhCRQAQAARokEsEiDwwQD"
+    . "rCSYAQAASDtcJBAPhT@@@@+LXCRAAVwkLINEJCABi5QkoAEAAItEJCABVCQcOYQk"
+    . "aAEAAA+F1@7@@0SJbCQsRItEJCy6rYvbaEQPr4QkcAEAAESLrCQwAQAAx0QkHAAA"
+    . "AABFMfZEicBBwfgf9+rB+gxEKcKJVCQQi3wkLItcJBAxwDnfD074RDt0JByJfCQs"
+    . "RA9O8ESJ6CuEJJgBAACJRCRAi4QkOAEAACuEJKABAACDvCTwAAAAA4lEJDgPjn8B"
+    . "AACLlCQ4AQAAQQ+v1YXSfhxIi4QkQAEAAIPqAUiNVBABxgABSIPAAUg5wnX0g7wk"
+    . "CAEAAAkPhGj8@@+LhCQIAQAAg+gBg@gHD4dIAQAAg@gDiUQkUA+OQwEAAItEJEDH"
+    . "RCRUAAAAAEUx5IlEJESLRCQ4iUQkTIt8JFQ5fCREx0QkZAAAAAAPjPP8@@+LfCRk"
+    . "OXwkTA+MlgUAAItcJFSLfCRQi0QkRCnYQPbHAg9Ew4tcJGSJwotEJEwp2ED2xwEP"
+    . "RMOD@wOJ0w9P2A9PwolcJDCJRCQg6VsEAABmDx9EAABEi4QkOAEAAIPBATH2weEH"
+    . "Mf9CjSytAAAAAESLZCQgRYXAD46G+@@@RYXtfl5Ii5wkEAEAAEljxEUxyUyNRAMC"
+    . "SGPfSANcJDgPH4QAAAAAAEEPthBBD7ZA@0UPtlj+a8BLa9ImAcJEidjB4AREKdgB"
+    . "0DnBQg+XBAtJg8EBSYPABEU5zX@LQQHsRAHvg8YBRANkJEA5tCQ4AQAAdYzp4vn@"
+    . "@4O8JIABAAABg5wkIAEAAP@pl@7@@8dEJFAAAAAAi0QkOMdEJFQAAAAARTHkiUQk"
+    . "RItEJECJRCRM6bj+@@+JyMHoEA+vhCSgAQAAmff@D6+EJBgBAABBicAPt8EPr4Qk"
+    . "mAEAAJn3+0GNDICLRCRMiUQkEItEJFCJRCQc6bj9@@9Ei7QkAAEAAEUxyTH2TIuc"
+    . "JFgBAABFhfYPhCIEAABIi6wkSAEAAEyLpCRQAQAARIu0JKABAABBiwtJg8NYicjB"
+    . "6BBBD6@Gmff@D6+EJBgBAABBicAPt8EPr4QkmAEAAJn3+0GNBIBCiUSNAEGLQ6yN"
+    . "BEaDxhZDiQSMSYPBAUQ5jCQAAQAAd6+LhCQAAQAARIuEJHABAAC6rYvbaEQPr8CJ"
+    . "RCQsRInAQcH4H@fqidDB+AxEKcBIi7wkWAEAAIlEJBBFMfbHRCQcAAAAAEiDxwhI"
+    . "iXwkCOnf@P@@ifiLtCQ4AQAA0aQkAAEAAA+vw0iYSAOEJFgBAACF9kiJRCQID46L"
+    . "+f@@QY1F@0SLXCRoRIukJAABAADHRCQwAAAAAMdEJEQAAAAASI0EhQYAAABEiXQk"
+    . "fESJfCQciYwk+AAAAESJrCQwAQAASIlEJFhCjQStAAAAAIlEJGCLnCQwAQAAhdsP"
+    . "jjIBAABIY0QkIEiLvCQQAQAASGN0JERIA3QkOEyNTAcCSANEJFhIAfhIiUQkEOsW"
+    . "xgYASYPBBEiDxgFMO0wkEA+E3gAAAEEPtilFD7Zx@0Ux20UPtmn+SItcJAhFOeNz"
+    . "z4sTQYPDAotLBInQD7b+RA+2wsHoEEQp90Up6A+2wCnogfr@@@8AdjmNFGgPr@9E"
+    . "jboABAAARA+v+MHnC0EPr8cBx7j+BQAAKdCJwkEPr9CJ0EEPr8AB+DnBc1JIg8MI"
+    . "65pBicoPttUPtslBweoQQYnPiUwkKEUPttKJVCQcRInRD6@AQQ+vyjnIf9CLVCQc"
+    . "D6@@idAPr8I5x3@ARInARIn6QQ+vwEEPr9c50H+uxgYBSYPBBEiDxgFMO0wkEA+F"
+    . "Iv@@@4t8JGABfCQgi7wkMAEAAAF8JESDRCQwAYtcJECLRCQwAVwkIDmEJDgBAAAP"
+    . "haH+@@9EiVwkaESLdCR8RIt8JByLjCT4AAAARIusJDABAADpi@b@@8dEJFAAAAAA"
+    . "x0QkTAAAAABFMfbHRCQsAAAAAOkh9P@@i0QkIIXAD4jvAAAAi3wkTDn4D4@jAAAA"
+    . "i0QkMIXAD4jXAAAAi3wkRDn4D4@LAAAAg0QkeAHHRCRQCQAAAItEJDCLfCQgQQ+v"
+    . "xUSNDDhIi7wkQAEAAEljwYA8BwAPhIgAAACLRCQsRDnwQQ9MxoO8JPAAAAADicYP"
+    . "jxoBAACFwA+EYgQAAESLXCQci1wkEEUxwEiJ+OsvZpBBOdZ+G0iLvCRQAQAARInK"
+    . "QgMUh@YEEAF1BkGD6wF4MkmDwAFEOcYPjiIEAABEOUQkLESJwn7JSIusJEgBAABE"
+    . "ic9CA3yFAIA8OAF3s4PrAXmug3wkUAl0CoNEJGQB6Zn6@@+LVCRIhdJ0LoN8JEgB"
+    . "D4SHBQAAg3wkSAIPhHIFAAAxwIN8JEgDD5TAKUQkIINEJHAB6Rv3@@+DbCQwAevv"
+    . "g0QkVAHpPPr@@2YPH0QAADHAx0QkLAAAAADpZfz@@0SJ6CuEJJgBAADHRCQsAAAA"
+    . "AEUx9sdEJBAAAAAAx0QkHAAAAACJRCRAi4QkOAEAACuEJKABAACJRCQ46XP5@@+L"
+    . "RCQwA4QkKAEAAA+vhCQYAQAAi1QkIAOUJCABAACDvCTwAAAABQ+EkgEAAI0ckEiL"
+    . "vCQQAQAAhfaNBBmNUAJIY9IPtiwXjVABSJhIY9IPtjwXiXwkWEiLvCQQAQAAD7YE"
+    . "B4lEJGAPhOQCAACLRCQciYwk+AAAADH@SIuMJBABAACJhCSAAAAAi0QkEIlEJHzp"
+    . "kwAAAEQ5tCSQAAAAfX1Ii4QkUAEAAIsUuAHajUICSJhED7YEAY1CAUhj0g+2FBFI"
+    . "mCtUJGAPtgQBRYnDQQHoK0QkWEWNiAAEAABBKetFD6@LD6@ARQ+vy0G7@gUAAMHg"
+    . "C0Upw0WJ2EQPr8JEAchBD6@QAdA5hCQAAQAAcg6DrCSAAAAAAQ+IlgAAAEiDxwE5"
+    . "@g+O4AMAADt8JCyJvCSQAAAAD41c@@@@SIuEJEgBAACLFLgB2o1CAkiYRA+2BAGN"
+    . "QgFIY9IPthQRSJgrVCRgD7YEAUWJw0EB6CtEJFhFjYgABAAAQSnrRQ+vyw+vwEUP"
+    . "r8vB4AtBAcG4@gUAAEQpwA+vwg+vwkQByDmEJAABAAAPg+7+@@+DbCR8AQ+J4@7@"
+    . "@4uMJPgAAADplf3@@40EkIlEJFiLRCRohcAPhY0CAACF9g+EdwEAAEyLjCRIAQAA"
+    . "jUb@SIt8JAhMi5wkUAEAADH2SY1EgQRIiYQkgAAAAItEJBCJRCR8i2wkWEEDKYnz"
+    . "RIsHiYwk+AAAAI1FAY1VAkhj7USJRCRgRYsDSJhIY9JIiYQkkAAAAEiLhCQQAQAA"
+    . "RImEJAABAABJifgPtgQQSIuUJJAAAACJhCSYAAAASIuEJBABAAAPtgQQiYQkkAAA"
+    . "AEiLhCQQAQAAD7YEKImEJJwAAADpgAAAAA8fgAAAAABBiwBBi2gEg8MCicJBiepI"
+    . "ienB6hBBweoQD7bND7bSK5QkmAAAAEUPttJBic9AD7bNRInVQQ+v6olMJCgPr9I5"
+    . "6n8yD7bUK5QkkAAAAESJ@UEPr+8Pr9I56n8aD7bAK4QknAAAAInKD6@RD6@AOdAP"
+    . "jhgCAABJg8AIO5wkAAEAAA+Cev@@@4F8JGD@@@8Ai4wk+AAAAHcLg2wkfAEPiCD8"
+    . "@@9Jg8EESIPHWEmDwwSDxhZMO4wkgAAAAA+FuP7@@0GDxAFIg7wkiAEAAAB0OYtU"
+    . "JDADlCQoAQAATWPEi0QkIAOEJCABAABIi7wkiAEAAMHiEAnQRDukJJABAABCiUSH"
+    . "@A+NWPP@@4t8JDAx0on4K4QkoAEAAIPAAUGJwIn4i7wkoAEAAEQPSMKNRDj@i3wk"
+    . "ODn4D0@Hi3wkIInGifgrhCSYAQAAg8ABQYnBifiLvCSYAQAARA9Iyo1EOP+LfCRA"
+    . "OfgPT8dBOfCJww+PUvv@@0SJ6kljwY1uAUEPr9BJY@1IY9JIAdBIA4QkQAEAAEmJ"
+    . "w4nYRCnISI1wAUE52X8TSo0UHkyJ2MYAAEiDwAFIOdB19EGDwAFJAftBOeh13On@"
+    . "+v@@uwMAAADpVPH@@4X2D4Tq@v@@i3wkEEyLjCQQAQAARTHbSIucJEgBAACLRCRY"
+    . "QgMEm0iLnCRQAQAAQosMm41QAkhj0g+23UUPtgQRicrB6hAPttJBKdCNUAFImEEP"
+    . "tgQBSGPSQQ+2FBFFD6@AKdoPttkp2EU5wnwRD6@SQTnXfAkPr8A5RCQofQmD7wEP"
+    . "iG36@@9Jg8MBRDnef4bpXP7@@4NEJDAB6ZL6@@+DRCQgAemI+v@@i4wk+AAAAOk8"
+    . "@v@@QcYEBgLpfO@@@4F8JGD@@@8Ai4wk+AAAAA+H9f3@@+n7@f@@QbsDAAAA6Vvw"
+    . "@@+QkJCQkJCQkJCQkJCQkA=="
+    MyFunc:=this.MCode(StrReplace((A_PtrSize=8?x64:x32),"@","/"))
   }
   text:=j[1], w:=j[2], h:=j[3]
   , err1:=this.Floor(j[4] ? j[5] : ini.err1)
@@ -492,9 +503,9 @@ PicFind(ini, j, dir, sx, sy, sw, sh, allpos_ptr)
     , "Ptr",ini.bits.Scan0, "int",ini.bits.Stride
     , "int",sx, "int",sy, "int",sw, "int",sh
     , "Ptr",ini.ss, "Ptr",ini.s1, "Ptr",ini.s0
-    , (mode=5 ? "Ptr":"AStr"),text, "int",w, "int",h
-    , "int",Floor(err1*10000), "int",Floor(err0*10000)
-    , "Ptr",allpos_ptr, "int",ini.allpos_max
+    , "Ptr",text, "int",w, "int",h
+    , "int",Floor(Abs(err1)*10000), "int",Floor(Abs(err0)*10000)
+    , "int",(err1<0||err0<0), "Ptr",allpos_ptr, "int",ini.allpos_max
     , "int",Floor(w*ini.zoomW), "int",Floor(h*ini.zoomH))
 }
 
@@ -510,25 +521,27 @@ int __attribute__((__stdcall__)) PicFind(
   , unsigned char * Bmp, int Stride
   , int sx, int sy, int sw, int sh
   , unsigned char * ss, unsigned int * s1, unsigned int * s0
-  , unsigned char * text, int w, int h, int err1, int err0
+  , unsigned char * text, int w, int h
+  , int err1, int err0, int more_err
   , unsigned int * allpos, int allpos_max
   , int new_w, int new_h )
 {
   int ok, o, i, j, k, v, e1, e0, len1, len0, max;
   int x, y, x1, y1, x2, y2, x3, y3;
   int r, g, b, rr, gg, bb, dR, dG, dB;
+  int ii, jj, RunDir, DirCount, RunCount, AllCount1, AllCount2;
   unsigned int c1, c2;
-  unsigned char * gs;
+  unsigned char * ts, * gs;
   unsigned int * cors;
-  ok=0; o=0; len1=0; len0=0;
+  ok=0; o=0; len1=0; len0=0; ts=ss+sw; gs=ss+sw*3;
+  if (mode<1 || mode>5) goto Return1;
   //----------------------
   if (mode==5)
   {
     if (k=(c!=0))  // FindPic
     {
       cors=(unsigned int *)(text+w*h*4);
-      r=(c>>16)&0xFF; g=(c>>8)&0xFF; b=c&0xFF;
-      dR=r*r; dG=g*g; dB=b*b;
+      r=(c>>16)&0xFF; g=(c>>8)&0xFF; b=c&0xFF; dR=r*r; dG=g*g; dB=b*b;
       for (y=0; y<h; y++)
       {
         for (x=0; x<w; x++, o+=4)
@@ -536,8 +549,8 @@ int __attribute__((__stdcall__)) PicFind(
           rr=text[2+o]; gg=text[1+o]; bb=text[o];
           for (i=0; i<n; i++)
           {
-            c=cors[i]; r=((c>>16)&0xFF)-rr;
-            g=((c>>8)&0xFF)-gg; b=(c&0xFF)-bb;
+            c=cors[i];
+            r=((c>>16)&0xFF)-rr; g=((c>>8)&0xFF)-gg; b=(c&0xFF)-bb;
             if (r*r<=dR && g*g<=dG && b*b<=dB) goto NoMatch1;
           }
           s1[len1]=(y*new_h/h)*Stride+(x*new_w/w)*4;
@@ -549,13 +562,13 @@ int __attribute__((__stdcall__)) PicFind(
     else  // FindMultiColor or FindColor
     {
       cors=(unsigned int *)text;
-      for (; len1<n; len1++, o+=21)
+      for (; len1<n; len1++, o+=22)
       {
-        c=cors[o]; y=(c>>4)/w; x=(c>>4)%w;
+        c=cors[o]; y=c>>16; x=c&0xFFFF;
         s1[len1]=(y*new_h/h)*Stride+(x*new_w/w)*4;
-        s0[len1]=o+(c&0xF)*2;
+        s0[len1]=o+cors[o+1]*2;
       }
-      cors++;
+      cors+=2;
     }
     goto StartLookUp;
   }
@@ -587,57 +600,79 @@ int __attribute__((__stdcall__)) PicFind(
   //----------------------
   // Generate Two Value Image
   o=sy*Stride+sx*4; j=Stride-sw*4; i=0;
-  if (mode==0)  // Color Mode
+  if (mode==1)  // Color Mode
   {
-    rr=(c>>16)&0xFF; gg=(c>>8)&0xFF; bb=c&0xFF;
+    cors=(unsigned int *)(text+w*h); n=n*2;
     for (y=0; y<sh; y++, o+=j)
+    {
       for (x=0; x<sw; x++, o+=4, i++)
       {
-        r=Bmp[2+o]-rr; g=Bmp[1+o]-gg; b=Bmp[o]-bb; v=r+rr+rr;
-        ss[i]=((1024+v)*r*r+2048*g*g+(1534-v)*b*b<=n) ? 1:0;
+        rr=Bmp[2+o]; gg=Bmp[1+o]; bb=Bmp[o];
+        for (k=0; k<n;)
+        {
+          c1=cors[k++]; c2=cors[k++];
+          r=((c1>>16)&0xFF)-rr; g=((c1>>8)&0xFF)-gg; b=(c1&0xFF)-bb;
+          if (c1>0xFFFFFF)
+          {
+            v=r+rr+rr;
+            if ((1024+v)*r*r+2048*g*g+(1534-v)*b*b<=c2) goto MatchOK1;
+          }
+          else
+          {
+            dR=(c2>>16)&0xFF; dG=(c2>>8)&0xFF; dB=c2&0xFF;
+            if (r*r<=dR*dR && g*g<=dG*dG && b*b<=dB*dB) goto MatchOK1;
+          }
+        }
+        ts[i]=0;
+        continue;
+        MatchOK1:
+        ts[i]=1;
       }
+    }
   }
-  else if (mode==1)  // Gray Threshold Mode
+  else if (mode==2)  // Gray Threshold Mode
   {
     c=(c+1)<<7;
     for (y=0; y<sh; y++, o+=j)
       for (x=0; x<sw; x++, o+=4, i++)
-        ss[i]=(Bmp[2+o]*38+Bmp[1+o]*75+Bmp[o]*15<c) ? 1:0;
+        ts[i]=(Bmp[2+o]*38+Bmp[1+o]*75+Bmp[o]*15<c) ? 1:0;
   }
-  else if (mode==2)  // Gray Difference Mode
+  else if (mode==3)  // Gray Difference Mode
   {
-    gs=ss+sw*2;
     for (y=0; y<sh; y++, o+=j)
     {
       for (x=0; x<sw; x++, o+=4, i++)
         gs[i]=(Bmp[2+o]*38+Bmp[1+o]*75+Bmp[o]*15)>>7;
     }
     for (i=0, y=0; y<sh; y++)
+    {
       for (x=0; x<sw; x++, i++)
       {
-        if (x==0 || y==0 || x==sw-1 || y==sh-1)
-          ss[i]=2;
+        if (x==0 || x==sw-1 || y==0 || y==sh-1)
+          ts[i]=2;
         else
         {
           n=gs[i]+c;
-          ss[i]=(gs[i-1]>n || gs[i+1]>n
+          ts[i]=(gs[i-1]>n || gs[i+1]>n
           || gs[i-sw]>n   || gs[i+sw]>n
           || gs[i-sw-1]>n || gs[i-sw+1]>n
           || gs[i+sw-1]>n || gs[i+sw+1]>n) ? 1:0;
         }
       }
+    }
   }
-  else  // (mode==3) Color Difference Mode
+  for (i=0, y=0; y<sh; y++)
   {
-    rr=(c>>16)&0xFF; gg=(c>>8)&0xFF; bb=c&0xFF;
-    r=(n>>16)&0xFF; g=(n>>8)&0xFF; b=n&0xFF;
-    dR=r*r; dG=g*g; dB=b*b;
-    for (y=0; y<sh; y++, o+=j)
-      for (x=0; x<sw; x++, o+=4, i++)
-      {
-        r=Bmp[2+o]-rr; g=Bmp[1+o]-gg; b=Bmp[o]-bb;
-        ss[i]=(r*r<=dR && g*g<=dG && b*b<=dB) ? 1:0;
-      }
+    for (x=0; x<sw; x++, i++)
+    {
+      r=ts[i];
+      g=(x==0) ? 3 : ts[i-1];
+      b=(x==sw-1) ? 3 : ts[i+1];
+      if (more_err)
+        ss[i]=(r==2||r==1||g==1||b==1)<<1|(r==2||r==0||g==0||b==0);
+      else
+        ss[i]=(r==2||r==1)<<1|(r==2||r==0);
+    }
   }
   //----------------------
   StartLookUp:
@@ -646,15 +681,17 @@ int __attribute__((__stdcall__)) PicFind(
   if (err1>=len1) len1=0;
   if (err0>=len0) len0=0;
   max=(len1>len0) ? len1 : len0;
-  if (mode==5 || mode==4)
+  w=new_w; h=new_h;
+  x1=0; y1=0; x2=sw-w; y2=sh-h;
+  if (mode>3)
   {
-    x1=sx; y1=sy; sx=0; sy=0;
+    for (i=0, j=sw*sh; i<j; i++)
+      ss[i]=1;
   }
   else
   {
-    x1=0; y1=0;
+    if (more_err) sx++;
   }
-  x2=x1+sw-new_w; y2=y1+sh-new_h;
   // 1 ==> ( Left to Right ) Top to Bottom
   // 2 ==> ( Right to Left ) Top to Bottom
   // 3 ==> ( Left to Right ) Bottom to Top
@@ -663,20 +700,56 @@ int __attribute__((__stdcall__)) PicFind(
   // 6 ==> ( Bottom to Top ) Left to Right
   // 7 ==> ( Top to Bottom ) Right to Left
   // 8 ==> ( Bottom to Top ) Right to Left
+  // 9 ==> Center to Four Sides
+  if (dir==9)
+  {
+    x=(x1+x2)/2; y=(y1+y2)/2; i=x2-x1+1; j=y2-y1+1;
+    AllCount1=i*j; i=(i>j) ? i+8 : j+8;
+    AllCount2=i*i; RunCount=0; DirCount=1; RunDir=0;
+    for (ii=0; RunCount<AllCount1 && ii<AllCount2; ii++)
+    {
+      for(jj=0; jj<DirCount; jj++)
+      {
+        if(x>=x1 && x<=x2 && y>=y1 && y<=y2)
+        {
+          RunCount++;
+          goto FindPos;
+          FindPos_GoBak:;
+        }
+        if (RunDir==0) y--;
+        else if (RunDir==1) x++;
+        else if (RunDir==2) y++;
+        else if (RunDir==3) x--;
+      }
+      if (RunDir & 1) DirCount++;
+      RunDir = (++RunDir) & 3;
+    }
+    goto Return1;
+  }
   if (dir<1 || dir>8) dir=1;
   if (--dir>3) { r=y1; y1=x1; x1=r; r=y2; y2=x2; x2=r; }
   for (y3=y1; y3<=y2; y3++)
   {
     for (x3=x1; x3<=x2; x3++)
     {
-      y=((dir&3)>1) ? y1+y2-y3 : y3;
-      x=(dir&1) ? x1+x2-x3 : x3;
+      y=(dir & 2) ? y1+y2-y3 : y3;
+      x=(dir & 1) ? x1+x2-x3 : x3;
       if (dir>3) { r=y; y=x; x=r; }
       //----------------------
-      e1=err1; e0=err0;
-      if (mode==5)
+      FindPos:
+      e1=err1; e0=err0; o=y*sw+x;
+      if (ss[o]==0) goto NoMatch;
+      if (mode<4)
       {
-        o=y*Stride+x*4;
+        for (i=0; i<max; i++)
+        {
+          if (i<len1 && ss[o+s1[i]]<2 && (--e1)<0) goto NoMatch;
+          if (i<len0 && (ss[o+s0[i]]&1)==0 && (--e0)<0) goto NoMatch;
+        }
+      }
+      else if (mode==5)
+      {
+        o=(sy+y)*Stride+(sx+x)*4;
         if (k)
         {
           for (i=0; i<max; i++)
@@ -691,22 +764,27 @@ int __attribute__((__stdcall__)) PicFind(
           for (i=0; i<max; i++)
           {
             j=o+s1[i]; rr=Bmp[2+j]; gg=Bmp[1+j]; bb=Bmp[j];
-            for (j=i*21, n=s0[i]; j<n;)
+            for (j=i*22, v=cors[j]>0xFFFFFF, n=s0[i]; j<n;)
             {
               c1=cors[j++]; c2=cors[j++];
               r=((c1>>16)&0xFF)-rr; g=((c1>>8)&0xFF)-gg; b=(c1&0xFF)-bb;
               dR=(c2>>16)&0xFF; dG=(c2>>8)&0xFF; dB=c2&0xFF;
-              if ((r*r<=dR*dR && g*g<=dG*dG && b*b<=dB*dB)^(c1>0xFFFFFF))
+              if (r*r<=dR*dR && g*g<=dG*dG && b*b<=dB*dB)
+              {
+                if (v) goto NoMatch2;
                 goto MatchOK;
+              }
             }
+            if (v) continue;
+            NoMatch2:
             if ((--e1)<0) goto NoMatch;
             MatchOK:;
           }
         }
       }
-      else if (mode==4)
+      else  // mode==4
       {
-        o=y*Stride+x*4;
+        o=(sy+y)*Stride+(sx+x)*4;
         j=o+c; rr=Bmp[2+j]; gg=Bmp[1+j]; bb=Bmp[j];
         for (i=0; i<max; i++)
         {
@@ -722,25 +800,22 @@ int __attribute__((__stdcall__)) PicFind(
           }
         }
       }
-      else
-      {
-        o=y*sw+x;
-        for (i=0; i<max; i++)
-        {
-          if (i<len1 && ss[o+s1[i]]==0 && (--e1)<0) goto NoMatch;
-          if (i<len0 && ss[o+s0[i]]==1 && (--e0)<0) goto NoMatch;
-        }
-        // Clear the image that has been found
-        for (i=0; i<len1; i++)
-          ss[o+s1[i]]=0;
-      }
       ok++;
       if (allpos!=0)
       {
         allpos[ok-1]=(sy+y)<<16|(sx+x);
         if (ok>=allpos_max) goto Return1;
       }
-      NoMatch:;
+      // Skip areas that may overlap
+      r=y-h+1; r=(r>=0) ? r:0; rr=y+h-1; rr=(rr<=sh-h) ? rr:sh-h;
+      g=x-w+1; g=(g>=0) ? g:0; gg=x+w-1; gg=(gg<=sw-w) ? gg:sw-w;
+      for (i=r; i<=rr; i++)
+      {
+        for (j=g; j<=gg; j++)
+          ss[i*sw+j]=0;
+      }
+      NoMatch:
+      if (dir==9) goto FindPos_GoBak;
     }
   }
   //----------------------
@@ -753,15 +828,15 @@ int __attribute__((__stdcall__)) PicFind(
 
 PicInfo(text)
 {
-  static info:=Map(), bmp:=[]
   if !InStr(text, "$")
     return
-  key:=(r:=StrLen(text))<10000 ? text
+  static info:=Map(), bmp:=[]
+  key:=(r:=StrLen(v:=Trim(text,"|")))<10000 ? v
     : DllCall("ntdll\RtlComputeCrc32", "uint",0
-    , "Ptr",StrPtr(text), "uint",r*2, "uint")
+    , "Ptr",StrPtr(v), "uint",r*2, "uint")
   if info.Has(key)
     return info[key]
-  v:=text, comment:="", seterr:=err1:=err0:=0
+  comment:="", seterr:=err1:=err0:=0
   ; You Can Add Comment Text within The <>
   if RegExMatch(v, "<([^>\n]*)>", &r)
     v:=StrReplace(v,r[0]), comment:=Trim(r[1])
@@ -772,16 +847,16 @@ PicInfo(text)
     , seterr:=1, err1:=r[1], err0:=r[2]
   }
   color:=SubStr(v,1,InStr(v,"$")-1), v:=Trim(SubStr(v,InStr(v,"$")+1))
-  mode:=InStr(color,"##") ? 5
-    : InStr(color,"#") ? 4 : InStr(color,"-") ? 3
-    : InStr(color,"**") ? 2 : InStr(color,"*") ? 1 : 0
+  mode:=InStr(color,"##") ? 5 : InStr(color,"#") ? 4
+    : InStr(color,"**") ? 3 : InStr(color,"*") ? 2 : 1
   color:=RegExReplace(color, "[*#\s]")
-  (mode=0 || mode=3 || mode=5) && color:=StrReplace(color,"0x")
+  (mode=1 || mode=5) && color:=StrReplace(color,"0x")
   if (mode=5)
   {
-    if !(v~="/[\s\-\w]+/[\s\-\w,/]+$")  ; FindPic
+    if !(v~="/[\s\-\w]+/[\s\-\w,/]+$")
     {
-      ; Text:="|<>##DRDGDB-RRGGBB1-RRGGBB2... $ d:\a.bmp"
+      ; <FindPic> : Text parameter require manual input
+      ; Text:='|<>##DRDGDB-RRGGBB1-RRGGBB2... $ d:\a.bmp'
       ; the 0xRRGGBB1(+/-0xDRDGDB)... all as transparent color
       if !(hBM:=LoadPicture(v))
         return
@@ -795,57 +870,49 @@ PicInfo(text)
         return
       ; All images used for Search are cached
       StrReplace(color, "-",,, &n)
-      bmp.Push(buf:=Buffer(w*h*4+n*4)), v:=buf.Ptr
+      bmp.Push(buf:=Buffer(w*h*4 + n*4)), v:=buf.Ptr, p:=v+w*h*4-4
       DllCall("RtlMoveMemory", "Ptr",v, "Ptr",Scan0, "Ptr",w*h*4)
       DllCall("DeleteObject", "Ptr",hBM2)
-      p:=v+w*h*4-4, tab:=Map(), tab.CaseSense:="Off"
-      , tab.Set("Black", "000000", "White", "FFFFFF"
-      , "Red", "FF0000", "Green", "008000", "Blue", "0000FF"
-      , "Yellow", "FFFF00", "Silver", "C0C0C0", "Gray", "808080"
-      , "Teal", "008080", "Navy", "000080", "Aqua", "00FFFF"
-      , "Olive", "808000", "Lime", "00FF00", "Fuchsia", "FF00FF"
-      , "Purple", "800080", "Maroon", "800000")
       For k1,v1 in StrSplit(color, "-")
       if (k1>1)
-        NumPut("uint", this.Floor("0x" (tab.Has(v1)?tab[v1]:v1)), p+=4)
+        NumPut("uint", this.ToRGB(v1), p+=4)
       color:=this.Floor("0x" StrSplit(color "-", "-")[1])|0x1000000
     }
-    else  ; FindMultiColor or FindColor
+    else
     {
-      ; Text:='|<>##DRDGDB $ 0/0/RRGGBB1-DRDGDB1/RRGGBB2/-RRGGBB3, xn/yn/...'
+      ; <FindMultiColor> or <FindColor> : FindColor is FindMultiColor with only one point
+      ; Text:='|<>##DRDGDB $ 0/0/RRGGBB1-DRDGDB1/RRGGBB2, xn/yn/-RRGGBB3/RRGGBB4, ...'
       ; Color behind '##' (0xDRDGDB) is the default allowed variation for all colors
-      ; Initial point (0,0) match 0xRRGGBB1(+/-0xDRDGDB1) or 0xRRGGBB2(+/-0xDRDGDB)
-      ; or not 0xRRGGBB3(+/-0xDRDGDB)
+      ; Initial point (0,0) match 0xRRGGBB1(+/-0xDRDGDB1) or 0xRRGGBB2(+/-0xDRDGDB),
+      ; point (xn,yn) match not 0xRRGGBB3(+/-0xDRDGDB) and not 0xRRGGBB4(+/-0xDRDGDB)
+      ; Starting with '-' after a point coordinate means excluding all subsequent colors
       ; Each point can take up to 10 sets of colors (xn/yn/RRGGBB1/.../RRGGBB10)
-      ; The color starting with '-' means excluding this color
-      ; If multiple colors need to be excluded, you can do this: ',xn/yn/-RRGGBB1,xn/yn/-RRGGBB2'
       arr:=StrSplit(Trim(RegExReplace(v, "i)\s|0x"), ","), ",")
       if !(n:=arr.Length)
         return
-      bmp.Push(buf:=Buffer(n*(1+10+10)*4)), v:=buf.Ptr
+      bmp.Push(buf:=Buffer(n*22*4)), v:=buf.Ptr
       , color:=StrSplit(color "-", "-")[1]
       For k1,v1 in arr
       {
         r:=StrSplit(v1 "/", "/")
         , x:=this.Floor(r[1]), y:=this.Floor(r[2])
         , (A_Index=1) ? (x1:=x2:=x, y1:=y2:=y)
-        : (x1:=Min(x1,x), x2:=Max(x2,x)
-        , y1:=Min(y1,y), y2:=Max(y2,y))
+        : (x1:=Min(x1,x), x2:=Max(x2,x), y1:=Min(y1,y), y2:=Max(y2,y))
       }
-      w:=x2-x1+1, h:=y2-y1+1
       For k1,v1 in arr
       {
         r:=StrSplit(v1 "/", "/")
         , x:=this.Floor(r[1])-x1, y:=this.Floor(r[2])-y1
         , n1:=Min(Max(r.Length-3, 0), 10)
-        , NumPut("uint", (y*w+x)<<4|n1, p:=v+(A_Index-1)*84)
+        , NumPut("uint", y<<16|x, p:=v+(A_Index-1)*22*4)
+        , NumPut("uint", n1, p+=4)
         Loop n1
           k1:=(InStr(v1:=r[2+A_Index], "-")=1 ? 0x1000000:0)
           , c:=StrSplit(Trim(v1,"-") "-" color, "-")
-          , NumPut("uint", this.Floor("0x" c[1])&0xFFFFFF|k1, p+=4)
+          , NumPut("uint", this.ToRGB(c[1])&0xFFFFFF|k1, p+=4)
           , NumPut("uint", this.Floor("0x" c[2]), p+=4)
       }
-      color:=0
+      color:=0, w:=x2-x1+1, h:=y2-y1+1
     }
   }
   else
@@ -854,26 +921,57 @@ PicInfo(text)
     , v:=this.base64tobit(r[2]), h:=StrLen(v)//w
     if (w<1 || h<1 || StrLen(v)!=w*h)
       return
-    if (mode=3)
+    arr:=StrSplit(Trim(color, "/"), "/")
+    if !(n:=arr.Length)
+      return
+    bmp.Push(buf:=Buffer(StrPut(v, "CP0") + n*2*4))
+    , StrPut(v, buf.Ptr, "CP0"), v:=buf.Ptr, p:=v+w*h-4
+    , color:=this.Floor(arr[1])
+    if (mode=1)
     {
-      r:=StrSplit(color, "-")
-      , color:=this.Floor("0x" r[1]), n:=this.Floor("0x" r[2])
+      For k1,v1 in arr
+      {
+        k1:=(InStr(v1, "@") ? 0x1000000:0)
+        , r:=StrSplit(v1 "@1", "@"), x:=this.Floor(r[2])
+        , x:=(x<=0||x>1?1:x), x:=Floor(4606*255*255*(1-x)*(1-x))
+        , c:=StrSplit(Trim(r[1],"-") "-" Format("{:X}",x), "-")
+        , NumPut("uint", this.ToRGB(c[1])&0xFFFFFF|k1, p+=4)
+        , NumPut("uint", this.Floor("0x" c[2]), p+=4)
+      }
     }
-    else
+    else if (mode=4)
     {
-      r:=StrSplit(color "@1", "@")
-      , color:=this.Floor((mode=0?"0x":"") r[1]), n:=this.Floor(r[2])
+      r:=StrSplit(arr[1] "@1", "@"), n:=this.Floor(r[2])
       , n:=(n<=0||n>1?1:n), n:=Floor(4606*255*255*(1-n)*(1-n))
-      , (mode=4) && color:=((color-1)//w)<<16|Mod(color-1,w)
+      , c:=this.Floor(r[1]), color:=((c-1)//w)<<16|Mod(c-1,w)
     }
   }
   return info[key]:=[v, w, h, seterr, err1, err0, mode, color, n, comment]
+}
+
+ToRGB(color)  ; color can use: RRGGBB, Red, Yellow, Black, White
+{
+  static tab:=""
+  if (!tab)
+    tab:=Map(), tab.CaseSense:="Off"
+    , tab.Set("Black", "000000", "White", "FFFFFF"
+    , "Red", "FF0000", "Green", "008000", "Blue", "0000FF"
+    , "Yellow", "FFFF00", "Silver", "C0C0C0", "Gray", "808080"
+    , "Teal", "008080", "Navy", "000080", "Aqua", "00FFFF"
+    , "Olive", "808000", "Lime", "00FF00", "Fuchsia", "FF00FF"
+    , "Purple", "800080", "Maroon", "800000")
+  return this.Floor("0x" (tab.Has(color)?tab[color]:color))
 }
 
 GetBitsFromScreen(&x:=0, &y:=0, &w:=0, &h:=0
   , ScreenShot:=1, &zx:=0, &zy:=0, &zw:=0, &zh:=0)
 {
   static CAPTUREBLT:=""
+  if (CAPTUREBLT="")  ; thanks Descolada
+  {
+    DllCall("Dwmapi\DwmIsCompositionEnabled", "Int*", &i:=0)
+    CAPTUREBLT:=i ? 0 : 0x40000000
+  }
   (!IsObject(this.bits) && this.bits:={Scan0:0, hBM:0, oldzw:0, oldzh:0})
   , bits:=this.bits
   if (!ScreenShot && bits.Scan0)
@@ -885,34 +983,36 @@ GetBitsFromScreen(&x:=0, &y:=0, &w:=0, &h:=0
   }
   cri:=A_IsCritical
   Critical
-  if (id:=this.BindWindow(0,0,1))
+  bits.BindWindow:=id:=this.BindWindow(0,0,1)
+  if (id)
   {
     id:=WinGetID("ahk_id " id)
     WinGetPos &zx, &zy, &zw, &zh, id
   }
   if (!id)
-    zx:=SysGet(76), zy:=SysGet(77), zw:=SysGet(78), zh:=SysGet(79)
+  {
+    zx:=SysGet(76)
+    , zy:=SysGet(77)
+    , zw:=SysGet(78)
+    , zh:=SysGet(79)
+  }
   this.UpdateBits(bits, zx, zy, zw, zh)
   , w:=Min(x+w,zx+zw), x:=Max(x,zx), w-=x
   , h:=Min(y+h,zy+zh), y:=Max(y,zy), h-=y
   if (!ScreenShot || w<1 || h<1 || !bits.hBM)
   {
-    Critical(cri)
+    Critical cri
     return bits
   }
   if IsSet(GetBitsFromScreen2) && (GetBitsFromScreen2 is Func)
     && GetBitsFromScreen2(bits, x-zx, y-zy, w, h)
   {
+    ; Get the bind window use bits.BindWindow
     ; Each small range of data obtained from DXGI must be
-    ; copied to the screenshot cache using this.CopyBits()
+    ; copied to the screenshot cache using FindText().CopyBits()
     zx:=bits.zx, zy:=bits.zy, zw:=bits.zw, zh:=bits.zh
-    Critical(cri)
+    Critical cri
     return bits
-  }
-  if (CAPTUREBLT="")  ; thanks Descolada
-  {
-    DllCall("Dwmapi\DwmIsCompositionEnabled", "Int*", &i:=0)
-    CAPTUREBLT:=i ? 0 : 0x40000000
   }
   mDC:=DllCall("CreateCompatibleDC", "Ptr",0, "Ptr")
   oBM:=DllCall("SelectObject", "Ptr",mDC, "Ptr",bits.hBM, "Ptr")
@@ -949,7 +1049,7 @@ GetBitsFromScreen(&x:=0, &y:=0, &w:=0, &h:=0
     this.CaptureCursor(mDC, zx, zy, zw, zh)
   DllCall("SelectObject", "Ptr",mDC, "Ptr",oBM)
   DllCall("DeleteDC", "Ptr",mDC)
-  Critical(cri)
+  Critical cri
   return bits
 }
 
@@ -980,7 +1080,7 @@ GetBitmapWH(hBM, &w, &h)
   , w:=NumGet(bm,4,"int"), h:=Abs(NumGet(bm,8,"int"))
 }
 
-CopyHBM(hBM1, x1, y1, hBM2, x2, y2, w, h, Clear:=0, trans:=0, alpha:=255)
+CopyHBM(hBM1, x1, y1, hBM2, x2, y2, w, h, Clear:=0)
 {
   if (w<1 || h<1 || !hBM1 || !hBM2)
     return
@@ -988,12 +1088,8 @@ CopyHBM(hBM1, x1, y1, hBM2, x2, y2, w, h, Clear:=0, trans:=0, alpha:=255)
   oBM1:=DllCall("SelectObject", "Ptr",mDC1, "Ptr",hBM1, "Ptr")
   mDC2:=DllCall("CreateCompatibleDC", "Ptr",0, "Ptr")
   oBM2:=DllCall("SelectObject", "Ptr",mDC2, "Ptr",hBM2, "Ptr")
-  if (trans)
-    DllCall("GdiAlphaBlend", "Ptr",mDC1, "int",x1, "int",y1, "int",w, "int",h
-    , "Ptr",mDC2, "int",x2, "int",y2, "int",w, "int",h, "uint",alpha<<16)
-  else
-    DllCall("BitBlt", "Ptr",mDC1, "int",x1, "int",y1, "int",w, "int",h
-    , "Ptr",mDC2, "int",x2, "int",y2, "uint",0xCC0020)
+  DllCall("BitBlt", "Ptr",mDC1, "int",x1, "int",y1, "int",w, "int",h
+  , "Ptr",mDC2, "int",x2, "int",y2, "uint",0xCC0020)
   if (Clear)
     DllCall("BitBlt", "Ptr",mDC1, "int",x1, "int",y1, "int",w, "int",h
     , "Ptr",mDC1, "int",x1, "int",y1, "uint",MERGECOPY:=0xC000CA)
@@ -1007,7 +1103,7 @@ CopyBits(Scan01,Stride1,x1,y1,Scan02,Stride2,x2,y2,w,h,Reverse:=0)
 {
   if (w<1 || h<1 || !Scan01 || !Scan02)
     return
-  static init:="", MFCopyImage
+  static init:=0, MFCopyImage
   if (!init && init:=1)
   {
     MFCopyImage:=DllCall("GetProcAddress", "Ptr"
@@ -1043,7 +1139,7 @@ DrawHBM(hBM, lines)
     {
       oldc:=v[5], BGR:=(oldc&0xFF)<<16|oldc&0xFF00|(oldc>>16)&0xFF
       DllCall("DeleteObject", "Ptr",brush)
-      brush:=DllCall("CreateSolidBrush", "UInt",BGR, "Ptr")
+      brush:=DllCall("CreateSolidBrush", "uint",BGR, "Ptr")
     }
     DllCall("SetRect", "Ptr",rect, "int",v[1], "int",v[2]
       , "int",v[1]+v[3], "int",v[2]+v[4])
@@ -1125,33 +1221,33 @@ CaptureCursor(hDC:=0, zx:=0, zy:=0, zw:=0, zh:=0, get_cursor:=0)
   DllCall("DeleteObject", "Ptr",hBMColor)
 }
 
-MCode(&code, hex)
+MCode(hex)
 {
   flag:=((hex~="[^\s\da-fA-F]")?1:4), hex:=RegExReplace(hex, "[\s=]")
-  , code:=Buffer(len:=(flag=1 ? StrLen(hex)//4*3+3 : StrLen(hex)//2))
+  code:=Buffer(len:=(flag=1 ? StrLen(hex)//4*3+3 : StrLen(hex)//2))
   DllCall("crypt32\CryptStringToBinary", "Str",hex, "uint",0
     , "uint",flag, "Ptr",code, "uint*",&len, "Ptr",0, "Ptr",0)
   DllCall("VirtualProtect", "Ptr",code, "Ptr",len, "uint",0x40, "Ptr*",0)
+  return code
 }
 
 bin2hex(addr, size, base64:=1)
 {
-  flag:=(base64 ? 1|0x40000000 : 4|0x0000000C)
+  flag:=(base64 ? 1:4)|0x40000000, len:=0
   Loop 2
-    p:=(A_Index=1 ? 0 : Buffer(len*2))
-    , DllCall("Crypt32\CryptBinaryToString", "Ptr",addr, "uint",size
-    , "uint",flag, "Ptr",p, "uint*",&len:=0)
+    DllCall("Crypt32\CryptBinaryToString", "Ptr",addr, "uint",size
+    , "uint",flag, "Ptr",(A_Index=1?0:(p:=Buffer(len*2))), "uint*",&len)
   return RegExReplace(StrGet(p, len), "\s+")
 }
 
 base64tobit(s)
 {
   ListLines (lls:=A_ListLines)?0:0
-  static Chars:="0123456789+/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  Chars:="0123456789+/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
   Loop Parse, Chars
     if InStr(s, A_LoopField, 1)
-      s:=StrReplace(s, A_LoopField, ((i:=A_Index-1)>>5&1)
-      . (i>>4&1) . (i>>3&1) . (i>>2&1) . (i>>1&1) . (i&1), 1)
+      s:=RegExReplace(s, "[" A_LoopField "]", ((i:=A_Index-1)>>5&1)
+      . (i>>4&1) . (i>>3&1) . (i>>2&1) . (i>>1&1) . (i&1))
   s:=RegExReplace(RegExReplace(s,"[^01]+"),"10*$")
   ListLines lls
   return s
@@ -1198,7 +1294,7 @@ PicLib(comments, add_to_Lib:=0, index:=1)
       {
         s1:=Trim(r[1]), s2:=""
         Loop Parse, s1
-          s2.="_" . Format("{:d}",Ord(A_LoopField))
+          s2.=Format("_{:d}", Ord(A_LoopField))
         Lib[s2]:=r[0]
       }
     Lib[""]:=""
@@ -1210,7 +1306,7 @@ PicLib(comments, add_to_Lib:=0, index:=1)
     {
       s1:=Trim(A_LoopField), s2:=""
       Loop Parse, s1
-        s2.="_" . Format("{:d}",Ord(A_LoopField))
+        s2.=Format("_{:d}", Ord(A_LoopField))
       if Lib.Has(s2)
         Text.="|" . Lib[s2]
     }
@@ -1263,9 +1359,9 @@ ScreenShot(x1:=0, y1:=0, x2:=0, y2:=0)
 
 GetColor(x, y, fmt:=1)
 {
-  bits:=this.GetBitsFromScreen(,,,,0,&zx,&zy,&zw,&zh)
-  , c:=(x<zx || x>=zx+zw || y<zy || y>=zy+zh || !bits.Scan0)
-  ? 0xFFFFFF : NumGet(bits.Scan0+(y-zy)*bits.Stride+(x-zx)*4,"uint")
+  bits:=this.GetBitsFromScreen(,,,,0,&zx,&zy,&zw,&zh), x-=zx, y-=zy
+  , c:=(x>=0 && x<zw && y>=0 && y<zh && bits.Scan0)
+  ? NumGet(bits.Scan0+y*bits.Stride+x*4,"uint") : 0xFFFFFF
   return (fmt ? Format("0x{:06X}",c&0xFFFFFF) : c)
 }
 
@@ -1273,9 +1369,9 @@ GetColor(x, y, fmt:=1)
 
 SetColor(x, y, color:=0x000000)
 {
-  bits:=this.GetBitsFromScreen(,,,,0,&zx,&zy,&zw,&zh)
-  if !(x<zx || x>=zx+zw || y<zy || y>=zy+zh || !bits.Scan0)
-    NumPut("uint", color, bits.Scan0+(y-zy)*bits.Stride+(x-zx)*4)
+  bits:=this.GetBitsFromScreen(,,,,0,&zx,&zy,&zw,&zh), x-=zx, y-=zy
+  if (x>=0 && x<zw && y>=0 && y<zh && bits.Scan0)
+    NumPut("uint", color, bits.Scan0+y*bits.Stride+x*4)
 }
 
 ; Identify a line of text or verification code
@@ -1344,7 +1440,8 @@ Sort(ok, dy:=10)
       ypos.Push(y)
     s.=(y*n+x) "." k "|"
   }
-  s:=Sort(Trim(s,"|"), "N D|")
+  s:=Trim(s,"|")
+  s:=Sort(s, "N D|")
   ok2:=[]
   Loop Parse, s, "|"
     ok2.Push( ok[StrSplit(A_LoopField,".")[2]] )
@@ -1360,7 +1457,8 @@ Sort2(ok, px, py)
   s:=""
   For k,v in ok
     s.=((v.x-px)**2+(v.y-py)**2) "." k "|"
-  s:=Sort(Trim(s,"|"), "N D|")
+  s:=Trim(s,"|")
+  s:=Sort(s, "N D|")
   ok2:=[]
   Loop Parse, s, "|"
     ok2.Push( ok[StrSplit(A_LoopField,".")[2]] )
@@ -1384,7 +1482,8 @@ Sort3(ok, dir:=1)
     : dir=6 ? x*n-y
     : dir=7 ? -x*n+y
     : dir=8 ? -x*n-y : y*n+x) "." k "|"
-  s:=Sort(Trim(s,"|"), "N D|")
+  s:=Trim(s,"|")
+  s:=Sort(s, "N D|")
   ok2:=[]
   Loop Parse, s, "|"
     ok2.Push( ok[StrSplit(A_LoopField,".")[2]] )
@@ -1412,21 +1511,23 @@ MouseTip(x:="", y:="", w:=10, h:=10, d:=3)
 
 RangeTip(x:="", y:="", w:="", h:="", color:="Red", d:=3)
 {
-  static Range:=Map()
+  ListLines (lls:=A_ListLines)?0:0
+  static Range:=[0,0,0,0]
   if (x="")
   {
     Loop 4
-      if (Range.Has(i:=A_Index) && Range[i])
-        Range[i].Destroy(), Range[i]:=0
+      if (Range[i:=A_Index])
+        Range[i].Destroy(), Range[i]:=""
+    ListLines lls
     return
   }
-  if !(Range.Has(1) && Range[1])
+  if (!Range[1])
   {
     Loop 4
       Range[A_Index]:=Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08000000")
   }
-  x:=(IsNumBer(x)?x:0), y:=(IsNumBer(y)?y:0)
-  , w:=(IsNumBer(w)?w:0), h:=(IsNumBer(h)?h:0), d:=(IsNumBer(d)?d:0)
+  x:=this.Floor(x), y:=this.Floor(y), w:=this.Floor(w), h:=this.Floor(h)
+  , d:=this.Floor(d)
   Loop 4
   {
     i:=A_Index
@@ -1437,32 +1538,39 @@ RangeTip(x:="", y:="", w:="", h:="", color:="Red", d:=3)
     Range[i].BackColor:=color
     Range[i].Show("NA x" x1 " y" y1 " w" w1 " h" h1)
   }
+  ListLines lls
+}
+
+State(key)
+{
+  return GetKeyState(key,"P") || GetKeyState(key)
 }
 
 ; Use RButton to select the screen range
 
 GetRange(ww:=25, hh:=8, key:="RButton")
 {
-  static Gui_Off:="", hk, FindText_HotkeyIf:=""
-  if (!Gui_Off)
-    Gui_Off:=this.GetRange.Bind(this, "Off")
-  if (ww="Off")
+  static KeyOff:="", hk
+  if (!KeyOff)
+    KeyOff:=this.GetRange.Bind(this, "Off")
+  if (ww=="Off")
     return hk:=Trim(A_ThisHotkey, "*")
   ;---------------------
-  Try FindText_HotkeyIf.Destroy()
-  FindText_HotkeyIf:=_Gui:=Gui()
-  _Gui.Opt "-Caption +ToolWindow +E0x80000"
-  _Gui.Title:="FindText_HotkeyIf"
-  _Gui.Show "NA x0 y0 w0 h0"
+  GetRange_HotkeyIf:=_Gui:=Gui()
+  _Gui.Opt("-Caption +ToolWindow +E0x80000")
+  _Gui.Title:="GetRange_HotkeyIf"
+  _Gui.Show("NA x0 y0 w0 h0")
   ;---------------------
-  HotIfWinExist "FindText_HotkeyIf"
+  if GetKeyState("Ctrl")
+    Send "{Ctrl Up}"
+  HotIfWinExist "GetRange_HotkeyIf"
   keys:=key "|Up|Down|Left|Right"
   For k,v in StrSplit(keys, "|")
   {
-    KeyWait v
-    Try Hotkey "*" v, Gui_Off, "On"
+    if GetKeyState(v)
+      Send "{" v " Up}"
+    Try Hotkey "*" v, KeyOff, "On"
   }
-  KeyWait "Ctrl"
   HotIfWinExist
   ;---------------------
   Critical (cri:=A_IsCritical)?"Off":"Off"
@@ -1472,234 +1580,83 @@ GetRange(ww:=25, hh:=8, key:="RButton")
   Loop
   {
     Sleep 50
-    MouseGetPos &x, &y
-    if (hk=key) || GetKeyState(key,"P") || GetKeyState("Ctrl","P")
+    MouseGetPos &x2, &y2
+    if (hk=key) || this.State(key) || this.State("Ctrl")
     {
       keydown++
       if (keydown=1)
         MouseGetPos &x1, &y1, &Bind_ID
-      KeyWait key
-      KeyWait "Ctrl"
+      timeout:=A_TickCount+3000
+      While (A_TickCount<timeout) && (this.State(key) || this.State("Ctrl"))
+        Sleep 50
       hk:=""
-      if (keydown>1)
+      if (keydown>=2)
         Break
     }
-    else if (hk="Up") || GetKeyState("Up","P")
+    else if (hk="Up") || this.State("Up")
       (hh>1 && hh--), hk:=""
-    else if (hk="Down") || GetKeyState("Down","P")
+    else if (hk="Down") || this.State("Down")
       hh++, hk:=""
-    else if (hk="Left") || GetKeyState("Left","P")
+    else if (hk="Left") || this.State("Left")
       (ww>1 && ww--), hk:=""
-    else if (hk="Right") || GetKeyState("Right","P")
+    else if (hk="Right") || this.State("Right")
       ww++, hk:=""
-    this.RangeTip((keydown?x1:x)-ww, (keydown?y1:y)-hh
-      , 2*ww+1, 2*hh+1, (A_MSec<500?"Red":"Blue"))
-    if (oldx=x && oldy=y)
+    x:=(keydown?x1:x2), y:=(keydown?y1:y2)
+    this.RangeTip(x-ww, y-hh, 2*ww+1, 2*hh+1, (A_MSec<500?"Red":"Blue"))
+    if (oldx=x2 && oldy=y2)
       Continue
-    oldx:=x, oldy:=y
-    ToolTip "x: " (keydown?x1:x) " y: " (keydown?y1:y) "`n" tip
+    oldx:=x2, oldy:=y2
+    ToolTip "x: " x " y: " y "`n" tip
   }
   ToolTip
   this.RangeTip()
-  HotIfWinExist "FindText_HotkeyIf"
+  HotIfWinExist "GetRange_HotkeyIf"
   For k,v in StrSplit(keys, "|")
-    Try Hotkey "*" v, Gui_Off, "Off"
+    Try Hotkey "*" v, KeyOff, "Off"
   HotIfWinExist
-  FindText_HotkeyIf.Destroy
-  Critical(cri)
-  return [x1-ww, y1-hh, x1+ww, y1+hh, Bind_ID]
+  GetRange_HotkeyIf.Destroy()
+  Critical cri
+  return [x-ww, y-hh, x+ww, y+hh, Bind_ID]
 }
 
-; Take a screenshot to Clipboard or File, or only get Range
-
-SnapShot(ScreenShot:=1, key:="LButton")
+GetRange2(key:="LButton")
 {
-  static Gui_Off:="", hk, SnapShot_HotkeyIf:="", SnapShot_Box:=""
-  if (!Gui_Off)
-    Gui_Off:=this.SnapShot.Bind(this, "Off")
-  if (ScreenShot="Off")
-    return hk:=Trim(A_ThisHotkey, "*")
-  n:=150000, x:=y:=-n, w:=h:=2*n
-  hBM:=this.BitmapFromScreen(&x,&y,&w,&h,ScreenShot,&zx,&zy,&zw,&zh)
-  ;---------------
-  Try SnapShot_HotkeyIf.Destroy()    ; WS_EX_NOACTIVATE:=0x08000000
-  SnapShot_HotkeyIf:=_Gui:=Gui()
-  _Gui.Opt "+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08000000"
-  _Gui.MarginX:=0, _Gui.MarginY:=0
-  _Gui.Add "Pic", "w" zw " h" zh, "HBITMAP:*" hBM
-  _Gui.Title:="SnapShot_HotkeyIf"
-  _Gui.Show "NA x" zx " y" zy " w" zw " h" zh
-  ;---------------
-  Try SnapShot_Box.Destroy()
-  SnapShot_Box:=_Gui:=Gui()
-  _Gui.Opt "+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08000000"
-  box_id:=_Gui.Hwnd
-  _Gui.MarginX:=0, _Gui.MarginY:=0
-  _Gui.SetFont "s12"
-  For k,v in StrSplit(this.Lang("s15"), "|")
-    id:=_Gui.Add("Button", (k=1?"":"x+0"), v)
-  id.GetPos(&pX, &pY, &pW, &pH)
-  box_w:=pX+pW+10, box_h:=pH+10
-  _Gui.Title:="SnapShot_Box"
-  _Gui.Show "Hide"
-  ;---------------
-  HotIfWinExist "SnapShot_HotkeyIf"
-  keys:=key "|RButton|Esc|Up|Down|Left|Right"
-  For k,v in StrSplit(keys, "|")
-  {
-    KeyWait v
-    Try Hotkey "*" v, Gui_Off, "On"
-  }
-  HotIfWinExist
-  ;---------------
-  Critical (cri:=A_IsCritical)?"Off":"Off"
+  FindText_GetRange:=_Gui:=Gui()
+  _Gui.Opt("+LastFound +AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08000000")
+  _Gui.BackColor:="White"
+  WinSetTransparent(10)
+  this.BitmapFromScreen(,,,,0,&x,&y,&w,&h)
+  _Gui.Title:="FindText_GetRange"
+  _Gui.Show("NA x" x " y" y " w" w " h" h)
   CoordMode "Mouse"
-  Loop
-  {  ;// For ReTry
-  tip:=this.Lang("s16")
-  hk:="", oldx:=oldy:="", ok:=0, d:=10, oldt:=0, oldf:=""
-  x:=y:=w:=h:=0
+  tip:=this.Lang("s7"), oldx:=oldy:=""
   Loop
   {
     Sleep 50
-    if (hk="RButton") || (hk="Esc") || GetKeyState("RButton","P") || GetKeyState("Esc","P")
-      Break 2
     MouseGetPos &x1, &y1
     if (oldx=x1 && oldy=y1)
       Continue
     oldx:=x1, oldy:=y1
     ToolTip "x: " x1 " y: " y1 " w: 0 h: 0`n" tip
   }
-  Until (hk=key) || GetKeyState(key,"P")
+  Until this.State(key) || this.State("Ctrl")
   Loop
   {
     Sleep 50
     MouseGetPos &x2, &y2
-    x:=Min(x1,x2), y:=Min(y1,y2), w:=Abs(x1-x2)+1, h:=Abs(y1-y2)+1
+    x:=Min(x1,x2), y:=Min(y1,y2), w:=Abs(x2-x1)+1, h:=Abs(y2-y1)+1
     this.RangeTip(x, y, w, h, (A_MSec<500 ? "Red":"Blue"))
     if (oldx=x2 && oldy=y2)
       Continue
     oldx:=x2, oldy:=y2
     ToolTip "x: " x " y: " y " w: " w " h: " h "`n" tip
   }
-  Until !GetKeyState(key,"P")
-  hk:=""
-  Loop
-  {
-    Sleep 50
-    MouseGetPos &x3, &y3
-    x1:=x, y1:=y, x2:=x+w-1, y2:=y+h-1
-    , d1:=Abs(x3-x1)<=d, d2:=Abs(x3-x2)<=d
-    , d3:=Abs(y3-y1)<=d, d4:=Abs(y3-y2)<=d
-    , d5:=x3>x1+d && x3<x2-d, d6:=y3>y1+d && y3<y2-d
-    , f:=(d1 && d3 ? 1 : d2 && d3 ? 2 : d1 && d4 ? 3
-    : d2 && d4 ? 4 : d5 && d3 ? 5 : d5 && d4 ? 6
-    : d6 && d1 ? 7 : d6 && d2 ? 8 : d5 && d6 ? 9 : 0)
-    if (oldf!=f)
-      oldf:=f, this.SetCursor(f=1 || f=4 ? "SIZENWSE"
-      : f=2 || f=3 ? "SIZENESW" : f=5 || f=6 ? "SIZENS"
-      : f=7 || f=8 ? "SIZEWE" : f=9 ? "SIZEALL" : "ARROW")
-    ;--------------
-    if (hk="Up") || GetKeyState("Up","P")
-      hk:="", y--
-    else if (hk="Down") || GetKeyState("Down","P")
-      hk:="", y++
-    else if (hk="Left") || GetKeyState("Left","P")
-      hk:="", x--
-    else if (hk="Right") || GetKeyState("Right","P")
-      hk:="", x++
-    else if (hk="RButton") || (hk="Esc") || GetKeyState("RButton","P") || GetKeyState("Esc","P")
-      Break
-    else if (hk=key) || GetKeyState(key,"P")
-    {
-      MouseGetPos(,, &id, &mc)
-      if (id=box_id) && (mc="Button1")
-      {
-        KeyWait key
-        this.RangeTip(), this.SetCursor()
-        SnapShot_Box.Hide
-        Continue 2
-      }
-      if (id=box_id) && (ok:=mc="Button2" ? 2 : mc="Button4" ? 1:100)
-        Break
-      SnapShot_Box.Hide
-      ToolTip
-      Loop
-      {
-        Sleep 50
-        MouseGetPos &x4, &y4
-        x1:=x, y1:=y, x2:=x+w-1, y2:=y+h-1, dx:=x4-x3, dy:=y4-y3
-        , (f=1 ? (x1+=dx, y1+=dy) : f=2 ? (x2+=dx, y1+=dy)
-        : f=3 ? (x1+=dx, y2+=dy) : f=4 ? (x2+=dx, y2+=dy)
-        : f=5 ? y1+=dy : f=6 ? y2+=dy : f=7 ? x1+=dx : f=8 ? x2+=dx
-        : f=9 ? (x1+=dx, y1+=dy, x2+=dx, y2+=dy) : 0)
-        , (f ? this.RangeTip(Min(x1,x2), Min(y1,y2), Abs(x1-x2)+1, Abs(y1-y2)+1
-        , (A_MSec<500 ? "Red":"Blue")) : 0)
-      }
-      Until !GetKeyState(key,"P")
-      hk:="", x:=Min(x1,x2), y:=Min(y1,y2), w:=Abs(x1-x2)+1, h:=Abs(y1-y2)+1
-      if (f=9) && Abs(dx)<2 && Abs(dy)<2 && (ok:=(-oldt)+(oldt:=A_TickCount)<400)
-        Break
-    }
-    this.RangeTip(x, y, w, h, (A_MSec<500 ? "Red":"Blue"))
-    x1:=x+w-box_w, (x1<10 && x1:=10), (x1>zx+zw-box_w && x1:=zx+zw-box_w)
-    , y1:=y+h+10, (y1>zy+zh-box_h && y1:=y-box_h), (y1<10 && y1:=10)
-    SnapShot_Box.Show "NA x" x1 " y" y1
-    ;-------------
-    if (oldx=x3 && oldy=y3)
-      Continue
-    oldx:=x3, oldy:=y3
-    ToolTip "x: " x " y: " y " w: " w " h: " h "`n" tip
-  }
-  Break
-  }  ;// For ReTry
-  HotIfWinExist "SnapShot_HotkeyIf"
-  For k,v in StrSplit(keys, "|")
-  {
-    KeyWait v
-    Try Hotkey "*" v, Gui_Off, "Off"
-  }
-  HotIfWinExist
+  Until !(this.State(key) || this.State("Ctrl"))
   ToolTip
   this.RangeTip()
-  this.SetCursor()
-  SnapShot_Box.Destroy
-  SnapShot_HotkeyIf.Destroy
-  Critical(cri)
-  ;---------------
-  w:=Min(x+w,zx+zw), x:=Max(x,zx), w-=x
-  h:=Min(y+h,zy+zh), y:=Max(y,zy), h-=y
-  if (ok=1)
-    this.SaveBitmapToFile(0, hBM, x-zx, y-zy, w, h)
-  else if (ok=2)
-  {
-    f:=FileSelect("S18", A_Desktop "\1.bmp", "SaveAs", "Image (*.bmp)")
-    this.SaveBitmapToFile(f, hBM, x-zx, y-zy, w, h)
-  }
-  DllCall("DeleteObject", "Ptr",hBM)
+  FindText_GetRange.Destroy()
+  A_Clipboard:=x ", " y ", " (x+w-1) ", " (y+h-1)
   return [x, y, x+w-1, y+h-1]
-}
-
-SetCursor(cursor:="", *)
-{
-  static init:=0, tab:=Map()
-  if (!init && init:=1)
-  {
-    OnExit(this.SetCursor.Bind(this,"")), this.SetCursor()
-    s:="ARROW,32512, SIZENWSE,32642, SIZENESW,32643"
-      . ", SIZEWE,32644, SIZENS,32645, SIZEALL,32646"
-      . ", IBEAM,32513, WAIT,32514, CROSS,32515, UPARROW,32516"
-      . ", NO,32648, HAND,32649, APPSTARTING,32650, HELP,32651"
-    For i,v in StrSplit(s, ",", " ")
-      (i&1) ? (k:=v) : (tab[k]:=DllCall("CopyImage", "Ptr"
-      , DllCall("LoadCursor", "Ptr",0, "Ptr",v, "Ptr")
-      , "int",2, "int",0, "int",0, "int",0, "Ptr"))
-  }
-  if (cursor!="") && tab.Has(cursor)
-    DllCall("SetSystemCursor", "Ptr", DllCall("CopyImage", "Ptr",tab[cursor]
-    , "int",2, "int",0, "int",0, "int",0, "Ptr"), "int",32512)
-  else
-    DllCall("SystemParametersInfo", "int",0x57, "int",0, "Ptr",0, "int",0)
 }
 
 BitmapFromScreen(&x:=0, &y:=0, &w:=0, &h:=0
@@ -1745,7 +1702,7 @@ SaveBitmapToFile(file, hBM_or_file, x:=0, y:=0, w:=0, h:=0)
     this.CopyHBM(hBM2, 0, 0, hBM, x, y, w, h)
     DllCall("DeleteObject", "Ptr",hBM), hBM:=hBM2
   }
-  dib:=Buffer(dib_size:=(A_PtrSize=8 ? 104:84))
+  dib:=Buffer(dib_size:=(A_PtrSize=8 ? 104:84), 0)
   , DllCall("GetObject", "Ptr",hBM, "int",dib_size, "Ptr",dib)
   , pbi:=dib.Ptr+(bitmap_size:=A_PtrSize=8 ? 32:24)
   , size:=NumGet(pbi+20, "uint"), pBits:=NumGet(pbi-A_PtrSize, "Ptr")
@@ -1786,8 +1743,8 @@ ShowPic(file:="", show:=1, &x:="", &y:="", &w:="", &h:="")
   if !(hBM:=LoadPicture(file))
     return
   this.GetBitmapWH(hBM, &w, &h)
-  this.GetBitsFromScreen(,,,,0,&x,&y)
-  bits:=this.GetBitsFromScreen(&x,&y,&w,&h,0)
+  bits:=this.GetBitsFromScreen(,,,,0,&x,&y,&zw,&zh)
+  this.UpdateBits(bits, x, y, Max(w,zw), Max(h,zh))
   this.CopyHBM(bits.hBM, 0, 0, hBM, 0, 0, w, h)
   DllCall("DeleteObject", "Ptr",hBM)
   if (show)
@@ -1813,19 +1770,18 @@ ShowScreenShot(x1:=0, y1:=0, x2:=0, y2:=0, ScreenShot:=1)
   if (!FindText_Screen)
   {
     FindText_Screen:=_Gui:=Gui()  ; WS_EX_NOACTIVATE:=0x08000000
-    _Gui.Opt "+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08000000"
-    _Gui.Name:="FindText_Screen"
+    _Gui.Opt("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08000000")
     _Gui.MarginX:=0, _Gui.MarginY:=0
     id:=_Gui.Add("Pic", "w" w " h" h), hPic:=id.Hwnd
     _Gui.Title:="Show Pic"
-    _Gui.Show "NA x" x " y" y " w" w " h" h
+    _Gui.Show("NA x" x " y" y " w" w " h" h)
     oldx:=x, oldy:=y, oldw:=w, oldh:=h
   }
   else if (oldx!=x || oldy!=y || oldw!=w || oldh!=h)
   {
     if (oldw!=w || oldh!=h)
       FindText_Screen[hPic].Move(,, w, h)
-    FindText_Screen.Show "NA x" x " y" y " w" w " h" h
+    FindText_Screen.Show("NA x" x " y" y " w" w " h" h)
     oldx:=x, oldy:=y, oldw:=w, oldh:=h
   }
   this.BitmapToWindow(hPic, 0, 0, hBM, 0, 0, w, h)
@@ -1846,22 +1802,25 @@ BitmapToWindow(hwnd, x1, y1, hBM, x2, y2, w, h)
 
 ; Quickly get the search data of screen image
 
-GetTextFromScreen(x1, y1, x2, y2, Threshold:=""
+GetTextFromScreen(x1:=0, y1:=0, x2:=0, y2:=0, Threshold:=""
   , ScreenShot:=1, &rx:="", &ry:="", cut:=1)
 {
+  x1:=this.Floor(x1), y1:=this.Floor(y1), x2:=this.Floor(x2), y2:=this.Floor(y2)
+  if (x1=0 && y1=0 && x2=0 && y2=0)
+    return this.Gui("CaptureS", ScreenShot)
   x:=Min(x1,x2), y:=Min(y1,y2), w:=Abs(x2-x1)+1, h:=Abs(y2-y1)+1
   bits:=this.GetBitsFromScreen(&x,&y,&w,&h,ScreenShot,&zx,&zy)
-  Scan0:=bits.Scan0, Stride:=bits.Stride
-  if (w<1 || h<1 || !Scan0)
+  if (w<1 || h<1 || !bits.Scan0)
   {
     return
   }
   ListLines (lls:=A_ListLines)?0:0
-  gray:=Map(), gray.Default:=0
-  Loop h + 0*(j:=y-zy-1)*(k:=0)
-  Loop w + 0*(i:=x-zx-1)*(j++)
-    c:=NumGet(Scan0+j*Stride+(++i)*4,"uint")
-    , gray[++k]:=(((c>>16)&0xFF)*38+((c>>8)&0xFF)*75+(c&0xFF)*15)>>7
+  gs:=Map(), gs.Default:=0
+  j:=bits.Stride-w*4, p:=bits.Scan0+(y-zy)*bits.Stride+(x-zx)*4-j-4
+  Loop h + 0*(k:=0)
+  Loop w + 0*(p+=j)
+    c:=NumGet(p+=4,"uint")
+    , gs[++k]:=(((c>>16)&0xFF)*38+((c>>8)&0xFF)*75+(c&0xFF)*15)>>7
   if InStr(Threshold,"**")
   {
     Threshold:=StrReplace(Threshold,"*")
@@ -1870,11 +1829,11 @@ GetTextFromScreen(x1, y1, x2, y2, Threshold:=""
     s:="", sw:=w, w-=2, h-=2, x++, y++
     Loop h + 0*(y1:=0)
     Loop w + 0*(y1++)
-      i:=y1*sw+A_Index+1, j:=gray[i]+Threshold
-      , s.=( gray[i-1]>j || gray[i+1]>j
-      || gray[i-sw]>j || gray[i+sw]>j
-      || gray[i-sw-1]>j || gray[i-sw+1]>j
-      || gray[i+sw-1]>j || gray[i+sw+1]>j ) ? "1":"0"
+      i:=y1*sw+A_Index+1, j:=gs[i]+Threshold
+      , s.=( gs[i-1]>j || gs[i+1]>j
+      || gs[i-sw]>j || gs[i+sw]>j
+      || gs[i-sw-1]>j || gs[i-sw+1]>j
+      || gs[i+sw-1]>j || gs[i+sw+1]>j ) ? "1":"0"
     Threshold:="**" Threshold
   }
   else
@@ -1886,7 +1845,7 @@ GetTextFromScreen(x1, y1, x2, y2, Threshold:=""
       Loop 256
         pp[A_Index-1]:=0
       Loop w*h
-        pp[gray[A_Index]]++
+        pp[gs[A_Index]]++
       IP0:=IS0:=0
       Loop 256
         k:=A_Index-1, IP0+=k*pp[k], IS0+=pp[k]
@@ -1906,7 +1865,7 @@ GetTextFromScreen(x1, y1, x2, y2, Threshold:=""
     }
     s:=""
     Loop w*h
-      s.=gray[A_Index]<=Threshold ? "1":"0"
+      s.=gs[A_Index]<=Threshold ? "1":"0"
     Threshold:="*" Threshold
   }
   ListLines lls
@@ -1949,17 +1908,18 @@ WaitChange(time:=-1, x1:=0, y1:=0, x2:=0, y2:=0)
 
 WaitNotChange(time:=1, timeout:=30, x1:=0, y1:=0, x2:=0, y2:=0)
 {
-  oldhash:="", timeout:=A_TickCount+Round(this.Floor(timeout)*1000)
+  oldhash:="", time:=this.Floor(time)
+  , timeout:=A_TickCount+Round(this.Floor(timeout)*1000)
   Loop
   {
     hash:=this.GetPicHash(x1, y1, x2, y2, 1), t:=A_TickCount
     if (hash!=oldhash)
-      oldhash:=hash, timeout2:=t+Round(this.Floor(time)*1000)
+      oldhash:=hash, timeout2:=t+Round(time*1000)
     if (t>=timeout2)
       return 1
     if (t>=timeout)
       return 0
-    Sleep 10
+    Sleep 100
   }
 }
 
@@ -1975,9 +1935,11 @@ GetPicHash(x1:=0, y1:=0, x2:=0, y2:=0, ScreenShot:=1)
   if (w<1 || h<1 || !bits.Scan0)
     return 0
   hash:=0, Stride:=bits.Stride, p:=bits.Scan0+(y-1)*Stride+x*4, w*=4
+  ListLines (lls:=A_ListLines)?0:0
   Loop h
     hash:=(hash*31+DllCall("ntdll\RtlComputeCrc32", "uint",0
       , "Ptr",p+=Stride, "uint",w, "uint"))&0xFFFFFFFF
+  ListLines lls
   return hash
 }
 
@@ -2014,7 +1976,7 @@ ScreenToClient(&x, &y, x1, y1, id:="")
 ; ImageFile can use "*n *TransBlack-White-RRGGBB... d:\a.bmp"
 
 ImageSearch(&rx:="", &ry:="", x1:=0, y1:=0, x2:=0, y2:=0
-  , ImageFile:="", ScreenShot:=1, FindAll:=0)
+  , ImageFile:="", ScreenShot:=1, FindAll:=0, dir:=1)
 {
   dx:=dy:=0
   if (A_CoordModePixel="Window")
@@ -2030,13 +1992,13 @@ ImageSearch(&rx:="", &ry:="", x1:=0, y1:=0, x2:=0, y2:=0
     ? Format("{:06X}", r[2]<<16|r[2]<<8|r[2]) : "000000")
     . (RegExMatch(v, "i)(^|\s)\*Trans([\-\w]+)\s", &r)
     ? "-" . Trim(r[2],"-") : "") . "$"
-    . Trim(RegExReplace(v, "(?<=^|\s)\*\S+"))
+    . Trim(RegExReplace(v, "(^|\s)\*\S+"))
   }
   x1:=this.Floor(x1), y1:=this.Floor(y1), x2:=this.Floor(x2), y2:=this.Floor(y2)
   if (x1=0 && y1=0 && x2=0 && y2=0)
     n:=150000, x1:=y1:=-n, x2:=y2:=n
   if (ok:=this.FindText(,, x1+dx, y1+dy, x2+dx, y2+dy
-    , 0, 0, text, ScreenShot, FindAll))
+    , 0, 0, text, ScreenShot, FindAll,,,, dir))
   {
     For k,v in ok  ; you can use ok:=FindText().ok
       v.1-=dx, v.2-=dy, v.x-=dx, v.y-=dy
@@ -2055,13 +2017,11 @@ ImageSearch(&rx:="", &ry:="", x1:=0, y1:=0, x2:=0, y2:=0
 ; ColorID can use "RRGGBB-DRDGDB|RRGGBB-DRDGDB", Variation in 0-255
 
 PixelSearch(&rx:="", &ry:="", x1:=0, y1:=0, x2:=0, y2:=0
-  , ColorID:="", Variation:=0, ScreenShot:=1, FindAll:=0)
+  , ColorID:="", Variation:=0, ScreenShot:=1, FindAll:=0, dir:=1)
 {
-  n:=this.Floor(Variation), text:=Format("##{:06X}$0/0", n<<16|n<<8|n)
-  Loop Parse, ColorID, "|"
-  if (v:=Trim(A_LoopField))!=""
-    text.="/" v
-  return this.ImageSearch(&rx, &ry, x1, y1, x2, y2, text, ScreenShot, FindAll)
+  n:=this.Floor(Variation), text:=Format("##{:06X}$0/0/", n<<16|n<<8|n)
+  . Trim(StrReplace(ColorID, "|", "/"), "/")
+  return this.ImageSearch(&rx, &ry, x1, y1, x2, y2, text, ScreenShot, FindAll, dir)
 }
 
 ; Pixel count of certain colors within the range indicated by Screen Coordinates
@@ -2076,15 +2036,25 @@ PixelCount(x1:=0, y1:=0, x2:=0, y2:=0, ColorID:="", Variation:=0, ScreenShot:=1)
     x:=Min(x1,x2), y:=Min(y1,y2), w:=Abs(x2-x1)+1, h:=Abs(y2-y1)+1
   bits:=this.GetBitsFromScreen(&x,&y,&w,&h,ScreenShot,&zx,&zy), x-=zx, y-=zy
   sum:=0, s1:=Buffer(4), s0:=Buffer(4)
-  , ini:={ bits:bits, ss:0, s1:s1.Ptr, s0:s0.Ptr
-  , err1:0, err0:0, allpos_max:0, zoomW:1, zoomH:1 }
-  , n:=this.Floor(Variation), text:=Format("##{:06X}$0/0", n<<16|n<<8|n)
-  Loop Parse, ColorID, "|"
-  if (v:=Trim(A_LoopField))!=""
-    text.="/" v
+  ini:={ bits:bits, ss:0, s1:s1.Ptr, s0:s0.Ptr
+    , err1:0, err0:0, allpos_max:0, zoomW:1, zoomH:1 }
+  n:=this.Floor(Variation), text:=Format("##{:06X}$0/0/", n<<16|n<<8|n)
+  . Trim(StrReplace(ColorID, "|", "/"), "/")
   if (w>0 && h>0 && bits.Scan0) && IsObject(j:=this.PicInfo(text))
     sum:=this.PicFind(ini, j, 1, x, y, w, h, 0)
   return sum
+}
+
+; Create color blocks containing a specified number of specified colors
+; ColorID can use "RRGGBB1@0.8|RRGGBB2-DRDGDB2"
+; Count is the quantity within the range that must meet the criteria
+
+ColorBlock(ColorID, w, h, Count)
+{
+  Text:="|<>[" (1-Count/(w*h)) ",1]"
+  . Trim(StrReplace(ColorID, "|", "/"), "/") . Format("${:d}.",w)
+  . this.bit2base64(StrReplace(Format(Format("{{}:0{:d}d{}}",w*h),0),"0","1"))
+  return Text
 }
 
 Click(x:="", y:="", other1:="", other2:="", GoBack:=0)
@@ -2097,6 +2067,7 @@ Click(x:="", y:="", other1:="", other2:="", GoBack:=0)
   if GoBack
     MouseMove oldx, oldy, 0
   CoordMode "Mouse", bak
+  return 1
 }
 
 ; Using ControlClick instead of Click, Use Screen Coordinates,
@@ -2121,6 +2092,7 @@ ControlClick(x, y, WhichButton:="", ClickCount:=1, Opt:="", hwnd:="")
   SetControlDelay -1
   ControlClick "x" x " y" y, hwnd,, WhichButton, ClickCount, "NA Pos " Opt
   DetectHiddenWindows bak
+  return 1
 }
 
 ; Running AHK code dynamically with new threads
@@ -2133,9 +2105,9 @@ Class Thread
   }
   __Delete()
   {
-    ProcessClose(this.pid)
+    ProcessClose this.pid
   }
-  Exec(s, Ahk:="", args:="")
+  Exec(s, Ahk:="", args:="")    ; required AHK v1.1.34+ and Ahk2Exe Use .exe
   {
     Ahk:=Ahk ? Ahk : A_IsCompiled ? A_ScriptFullPath : A_AhkPath
     s:="`nDllCall(`"SetWindowText`",`"Ptr`",A_ScriptHwnd,`"Str`",`"<AHK>`")`n"
@@ -2150,18 +2122,18 @@ Class Thread
     Catch
     {
       f:=A_Temp "\~ahk.tmp"
-      s:="`r`nTry FileDelete(`"" f "`")`r`n" s
-      Try FileDelete(f)
-      FileAppend(s, f)
+      s:="`r`nTry FileDelete `"" f "`"`r`n" s
+      Try FileDelete f
+      FileAppend s, f
       r:=this.Clear.Bind(this)
-      SetTimer(r, -3000)
+      SetTimer r, -3000
       Run "`"" Ahk "`" /script /force /CP0 `"" f "`" " args,,, &pid
     }
     return pid
   }
   Clear()
   {
-    Try FileDelete(A_Temp "\~ahk.tmp")
+    Try FileDelete A_Temp "\~ahk.tmp"
     SetTimer(,0)
   }
 }
@@ -2170,7 +2142,7 @@ Class Thread
 
 QPC()
 {
-  static f:=0, c:=DllCall("QueryPerformanceFrequency", "Int*",&f)+(f/=1000)
+  static f:=0, c:=DllCall("QueryPerformanceFrequency", "Int64*",&f)+(f/=1000)
   return (!DllCall("QueryPerformanceCounter", "Int64*",&c))*0+(c/f)
 }
 
@@ -2182,8 +2154,8 @@ ToolTip(s:="", x:="", y:="", num:=1, arg:="")
   f:="ToolTip_" . this.Floor(num)
   if (s="")
   {
-    ini[f]:=""
     Try tip[f].Destroy()
+    ini[f]:="", tip[f]:=""
     return
   }
   ;-----------------
@@ -2213,25 +2185,21 @@ ToolTip(s:="", x:="", y:="", num:=1, arg:="")
     ini[f]:=r
     Try tip[f].Destroy()
     tip[f]:=_Gui:=Gui()  ; WS_EX_LAYERED:=0x80000, WS_EX_TRANSPARENT:=0x20
-    _Gui.Opt "+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x80020"
+    _Gui.Opt("+LastFound +AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x80020")
     _Gui.MarginX:=2, _Gui.MarginY:=2
     _Gui.BackColor:=bgcolor
-    _Gui.SetFont "c" color " s" size " " bold, font
-    _Gui.Add "Text",, s
+    _Gui.SetFont("c" color " s" size " " bold, font)
+    _Gui.Add("Text",, s)
     _Gui.Title:=f
-    _Gui.Show "Hide"
-    ;------------------
-    DetectHiddenWindows (bak:=A_DetectHiddenWindows)?1:1
-    WinSetTransparent(trans, _Gui.Hwnd)
-    DetectHiddenWindows bak
+    _Gui.Show("Hide")
+    WinSetTransparent(trans)
   }
-  else _Gui:=tip[f]
-  _Gui.Opt "+AlwaysOnTop"
-  _Gui.Show "NA " x " " y
+  tip[f].Opt("+AlwaysOnTop")
+  tip[f].Show("NA " x " " y)
   if (timeout)
   {
     (!timer.Has(f) && timer[f]:=this.ToolTip.Bind(this,"","","",num))
-    SetTimer(timer[f], -Round(Abs(this.Floor(timeout)*1000))-1)
+    SetTimer timer[f], -Round(Abs(this.Floor(timeout)*1000))-1
   }
 }
 
@@ -2239,29 +2207,26 @@ ToolTip(s:="", x:="", y:="", num:=1, arg:="")
 
 ObjView(obj, keyname:="")
 {
-  static Gui_DeBug:=""
   if IsObject(obj)
   {
     s:=""
     For k,v in (HasMethod(obj,"__Enum") ? obj : obj.OwnProps())
-      s.=this.ObjView(v, keyname "[" (k is Number ? k : "`"" k "`"") "]")
+      s.=this.ObjView(v, keyname "[" (IsNumber(k) ? k : "`"" k "`"") "]")
   }
   else
-    s:=keyname ": " (obj is Number ? obj : "`"" obj "`"") "`n"
+    s:=keyname ": " (IsNumber(obj) ? obj : "`"" obj "`"") "`n"
   if (keyname!="")
     return s
   ;------------------
-  Try Gui_DeBug.Destroy()
-  Gui_DeBug:=_Gui:=Gui()
-  _Gui.Opt "+LastFound +AlwaysOnTop"
-  _Gui.Add("Button", "y270 w350 Default", "OK").OnEvent("Click", (*) => WinHide())
-  _Gui.Add "Edit", "xp y10 w350 h250 -Wrap -WantReturn"
+  _Gui:=Gui("+AlwaysOnTop")
+  _Gui.Add("Button", "y270 w350 Default", "OK").OnEvent("Click",(*)=>WinHide())
+  _Gui.Add("Edit", "xp y10 w350 h250 -Wrap -WantReturn")
   _Gui["Edit1"].Value:=s
   _Gui.Title:="Debug view object values"
-  _Gui.Show
-  DetectHiddenWindows(0)
-  WinWaitClose "ahk_id " WinExist()
-  _Gui.Destroy
+  _Gui.Show()
+  DetectHiddenWindows 0
+  WinWaitClose "ahk_id " _Gui.Hwnd
+  _Gui.Destroy()
 }
 
 EditScroll(hEdit, regex:="", line:=0, pos:=0)
@@ -2271,51 +2236,6 @@ EditScroll(hEdit, regex:="", line:=0, pos:=0)
     : (line>1) ? InStr(s,"`n",0,1,line-1) : pos
   SendMessage 0xB1, pos, pos, hEdit
   SendMessage 0xB7,,, hEdit
-}
-
-; Get Script from Compiled programs
-
-GetScript()  ; thanks TAC109
-{
-  if (!A_IsCompiled)
-    return
-  For i,ahk in ["#1", ">AUTOHOTKEY SCRIPT<"]
-  if (rc:=DllCall("FindResource", "Ptr",0, "Str",ahk, "Ptr",10, "Ptr"))
-  && (sz:=DllCall("SizeofResource", "Ptr",0, "Ptr",rc, "Uint"))
-  && (pt:=DllCall("LoadResource", "Ptr",0, "Ptr",rc, "Ptr"))
-  && (pt:=DllCall("LockResource", "Ptr",pt, "Ptr"))
-  && (DllCall("VirtualProtect", "Ptr",pt, "Ptr",sz, "UInt",0x4, "UInt*",0))
-  && (InStr(StrGet(pt, 20, "utf-8"), "<COMPILER"))
-    return this.FormatScript(StrGet(pt, sz, "utf-8"))
-}
-
-FormatScript(s, space:="", tab:="    ")
-{
-  ListLines (lls:=A_ListLines)?0:0
-  VarSetStrCapacity(&ss, StrLen(s)*2), n:=0, w:=StrLen(tab)
-  , space2:=StrReplace(Format("{:020d}",0), "0", tab)
-  Loop Parse, s, "`n", "`r"
-  {
-    v:=Trim(A_LoopField), n2:=n
-    if RegExMatch(v, "^\s*[{}][\s{}]*|\{\s*$|\{\s+;", &r)
-      n+=w*(StrLen(RegExReplace(r[0], "[^{]"))
-      -StrLen(RegExReplace(r[0], "[^}]"))), n2:=Min(n,n2)
-    ss.=Space . SubStr(space2,1,n2) . v . "`r`n"
-  }
-  ListLines lls
-  return SubStr(ss,1,-2)
-}
-
-; Get Gui object from Gui.Name
-
-GuiFromName(GuiName:="")
-{
-  DetectHiddenWindows (bak:=A_DetectHiddenWindows)?1:1
-  List:=WinGetList("ahk_class AutoHotkeyGUI ahk_pid " DllCall("GetCurrentProcessId"))
-  DetectHiddenWindows bak
-  For id in List
-    Try if (_Gui:=GuiFromHwnd(id)) && (_Gui.Name=GuiName)
-      return _Gui
 }
 
 ; Get Last GuiControl object from Gui.Opt("+LastFound")
@@ -2329,16 +2249,13 @@ LastCtrl()
 
 ; Hide Gui from Gui.Opt("+LastFound")
 
-Hide(id:="")
+Hide(args*)
 {
-  if (id ? WinExist("ahk_id " id) : WinExist())
-  {
-    WinMinimize
-    WinHide
-    ToolTip
-    DetectHiddenWindows 0
-    WinWaitClose "ahk_id " WinExist()
-  }
+  WinMinimize
+  WinHide
+  ToolTip
+  DetectHiddenWindows 0
+  WinWaitClose "ahk_id " WinExist()
 }
 
 
@@ -2348,68 +2265,65 @@ Hide(id:="")
 Gui(cmd, arg1:="", args*)
 {
   static
-  local _Gui, cri, lls
-  (InStr("MouseMove|ToolTipOff", cmd) && ListLines(0))
+  local cri, lls, _Gui
+  ListLines InStr("MouseMove|ToolTipOff",cmd)?0:A_ListLines
   static init:=0
   if (!init && init:=1)
   {
     SavePicDir:=A_Temp "\Ahk_ScreenShot\"
-    Gui_ := this.Gui.Bind(this)
-    Gui_G := this.Gui.Bind(this, "G")
-    Gui_Run := this.Gui.Bind(this, "Run")
-    Gui_Off := this.Gui.Bind(this, "Off")
-    Gui_Show := this.Gui.Bind(this, "Show")
-    Gui_KeyDown := this.Gui.Bind(this, "KeyDown")
-    Gui_LButtonDown := this.Gui.Bind(this, "LButtonDown")
-    Gui_RButtonDown := this.Gui.Bind(this, "RButtonDown")
-    Gui_MouseMove := this.Gui.Bind(this, "MouseMove")
-    Gui_ScreenShot := this.Gui.Bind(this, "ScreenShot")
-    Gui_ShowPic := this.Gui.Bind(this, "ShowPic")
-    Gui_Slider := this.Gui.Bind(this, "Slider")
-    Gui_ToolTip := this.Gui.Bind(this, "ToolTip")
-    Gui_ToolTipOff := this.Gui.Bind(this, "ToolTipOff")
-    Gui_SaveScr := this.Gui.Bind(this, "SaveScr")
+    G_ := this.Gui.Bind(this)
+    G_G := this.Gui.Bind(this, "G")
+    G_Run := this.Gui.Bind(this, "Run")
+    G_Show := this.Gui.Bind(this, "Show")
+    G_KeyDown := this.Gui.Bind(this, "KeyDown")
+    G_LButtonDown := this.Gui.Bind(this, "LButtonDown")
+    G_RButtonDown := this.Gui.Bind(this, "RButtonDown")
+    G_MouseMove := this.Gui.Bind(this, "MouseMove")
+    G_ScreenShot := this.Gui.Bind(this, "ScreenShot")
+    G_ShowPic := this.Gui.Bind(this, "ShowPic")
+    G_Slider := this.Gui.Bind(this, "Slider")
+    G_ToolTip := this.Gui.Bind(this, "ToolTip")
+    G_ToolTipOff := this.Gui.Bind(this, "ToolTipOff")
+    G_SaveScr := this.Gui.Bind(this, "SaveScr")
     FindText_Capture:=FindText_Main:=FindText_SubPic:=""
     cri:=A_IsCritical
     Critical
     Lang:=this.Lang(,1), Tip_Text:=this.Lang(,2)
-    Gui_("MakeCaptureWindow")
-    Gui_("MakeMainWindow")
-    OnMessage(0x100, Gui_KeyDown)
-    OnMessage(0x201, Gui_LButtonDown)
-    OnMessage(0x204, Gui_RButtonDown)
-    OnMessage(0x200, Gui_MouseMove)
-    A_TrayMenu.Add
-    A_TrayMenu.Add Lang["s1"], Gui_Show
+    G_.Call("MakeCaptureWindow")
+    G_.Call("MakeMainWindow")
+    OnMessage(0x100, G_KeyDown)
+    OnMessage(0x201, G_LButtonDown)
+    OnMessage(0x204, G_RButtonDown)
+    OnMessage(0x200, G_MouseMove)
+    MenuTray:=A_TrayMenu
+    MenuTray.Add
+    MenuTray.Add Lang["s1"], G_Show
     if (!A_IsCompiled && A_LineFile=A_ScriptFullPath)
     {
-      A_TrayMenu.Default:=Lang["s1"]
-      A_TrayMenu.ClickCount:=1
+      MenuTray.Default:=Lang["s1"]
+      MenuTray.ClickCount:=1
       TraySetIcon "Shell32.dll", 23
     }
-    Critical(cri)
-    _Gui:=Gui("+LastFound")
-    _Gui.Destroy
+    Critical cri
+    Gui("+LastFound").Destroy()
     ;-------------------
-    Pics:=PrevControl:=x:=y:=oldx:=oldy:="", oldt:=0
+    Pics:=PrevControl:=x:=y:=oldx:=oldy:="", dx:=dy:=oldt:=0
   }
   Switch cmd, 1
   {
-  Case "Off":
-    return hk:=Trim(A_ThisHotkey, "*")
   Case "G":
     id:=this.LastCtrl()
-    Try id.OnEvent("Click", Gui_Run)
-    Try id.OnEvent("Change", Gui_Run)
+    Try id.OnEvent("Click", G_Run)
+    Catch
+      Try id.OnEvent("Change", G_Run)
     return
   Case "Run":
     Critical
-    Gui_(arg1.Name)
+    G_.Call(arg1.Name)
     return
   Case "Show":
-    _Gui:=FindText_Main
-    _Gui.Show(arg1 ? "Center" : "")
-    ControlFocus(hscr)
+    FindText_Main.Show(arg1 ? "Center" : "")
+    ControlFocus hscr
     return
   Case "Cancel", "Cancel2":
     WinHide
@@ -2418,14 +2332,14 @@ Gui(cmd, arg1:="", args*)
     WindowColor:="0xDDEEFF"
     Try FindText_Capture.Destroy()
     FindText_Capture:=_Gui:=Gui()
-    _Gui.Opt "+LastFound +AlwaysOnTop -DPIScale"
-    _Gui.MarginX:=15, _Gui.MarginY:=15
+    _Gui.Opt("+LastFound +AlwaysOnTop -DPIScale")
+    _Gui.MarginX:=15, _Gui.MarginY:=10
     _Gui.BackColor:=WindowColor
-    _Gui.SetFont "s12", "Verdana"
+    _Gui.SetFont("s12", "Verdana")
     Tab:=_Gui.Add("Tab3", "vMyTab1 -Wrap", StrSplit(Lang["s18"],"|"))
     Tab.UseTab(1)
     C_:=Map(), nW:=71, nH:=25, w:=h:=12, pW:=nW*(w+1)-1, pH:=(nH+1)*(h+1)-1
-    _Gui.Opt "-Theme"
+    _Gui.Opt("-Theme")
     ListLines (lls:=A_ListLines)?0:0
     Loop nW*(nH+1)
     {
@@ -2434,253 +2348,241 @@ Gui(cmd, arg1:="", args*)
       C_[i]:=id.Hwnd
     }
     ListLines lls
-    _Gui.Opt "+Theme"
-    _Gui.Add "Slider", "xs w" pW " vMySlider1 +Center Page20 Line10 NoTicks AltSubmit"
-    Gui_G()
-    _Gui.Add "Slider", "ys h" pH " vMySlider2 +Center Page20 Line10 NoTicks AltSubmit +Vertical"
-    Gui_G()
+    _Gui.Opt("+Theme")
+    _Gui.Add("Slider", "xs w" pW " vMySlider1 +Center Page20 Line10 NoTicks AltSubmit")
+    G_G.Call()
+    _Gui.Add("Slider", "ys h" pH " vMySlider2 +Center Page20 Line10 NoTicks AltSubmit +Vertical")
+    G_G.Call()
     Tab.UseTab(2)
-    pW-=120+15
-    id:=_Gui.Add("Text", "w" pW " h" pH " +Border Section"), parent_id:=id.Hwnd
-    _Gui.Add "Slider", "xs w" pW " vMySlider3 +Center Page20 Line10 NoTicks AltSubmit"
-    Gui_G()
-    _Gui.Add "Slider", "ys h" pH " vMySlider4 +Center Page20 Line10 NoTicks AltSubmit +Vertical"
-    Gui_G()
-    _Gui.Add "ListBox", "ys w120 h200 vSelectBox AltSubmit 0x100"
-    Gui_G()
-    _Gui.Add "Button", "y+0 wp vClearAll", Lang["ClearAll"]
-    Gui_G()
-    _Gui.Add "Button", "y+0 wp vOpenDir", Lang["OpenDir"]
-    Gui_G()
-    _Gui.Add "Button", "y+0 wp vLoadPic", Lang["LoadPic"]
-    Gui_G()
-    _Gui.Add "Button", "y+0 wp vSavePic", Lang["SavePic"]
-    Gui_G()
+    id:=_Gui.Add("Text", "w" (pW-135) " h" pH " +Border Section"), parent_id:=id.Hwnd
+    _Gui.Add("Slider", "xs wp vMySlider3 +Center Page20 Line10 NoTicks AltSubmit")
+    G_G.Call()
+    _Gui.Add("Slider", "ys h" pH " vMySlider4 +Center Page20 Line10 NoTicks AltSubmit +Vertical")
+    G_G.Call()
+    _Gui.Add("ListBox", "ys w120 h200 vSelectBox AltSubmit 0x100")
+    G_G.Call()
+    _Gui.Add("Button", "y+0 wp vClearAll", Lang["ClearAll"])
+    G_G.Call()
+    _Gui.Add("Button", "y+0 wp vOpenDir", Lang["OpenDir"])
+    G_G.Call()
+    _Gui.Add("Button", "y+0 wp vLoadPic", Lang["LoadPic"])
+    G_G.Call()
+    _Gui.Add("Button", "y+0 wp vSavePic", Lang["SavePic"])
+    G_G.Call()
     Tab.UseTab()
-    MySlider1:=MySlider2:=MySlider3:=MySlider4:=dx:=dy:=0
     ;--------------
-    _Gui.Add "Button", "xm Hidden Section", Lang["Auto"]
-    this.LastCtrl().GetPos(&pX, &pY, &pW, &pH)
+    _Gui.Add("Text", "xm Section", Lang["SelGray"])
+    _Gui.Add("Edit", "x+5 yp-3 w80 vSelGray ReadOnly")
+    _Gui.Add("Text", "x+15 ys", Lang["SelColor"])
+    _Gui.Add("Edit", "x+5 yp-3 w150 vSelColor ReadOnly")
+    _Gui.Add("Text", "x+15 ys", Lang["SelR"])
+    _Gui.Add("Edit", "x+5 yp-3 w80 vSelR ReadOnly")
+    _Gui.Add("Text", "x+5 ys", Lang["SelG"])
+    _Gui.Add("Edit", "x+5 yp-3 w80 vSelG ReadOnly")
+    _Gui.Add("Text", "x+5 ys", Lang["SelB"])
+    _Gui.Add("Edit", "x+5 yp-3 w80 vSelB ReadOnly")
+    ;--------------
+    id:=_Gui.Add("Button", "xm Hidden Section", Lang["Auto"])
+    id.GetPos(&pX, &pY, &pW, &pH)
     w:=Round(pW*0.75), i:=Round(w*3+15+pW*0.5-w*1.5)
-    _Gui.Add "Button", "xm+" i " yp w" w " hp -Wrap vRepU", Lang["RepU"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutU", Lang["CutU"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutU3", Lang["CutU3"]
-    Gui_G()
-    _Gui.Add "Button", "xm wp hp -Wrap vRepL", Lang["RepL"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutL", Lang["CutL"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutL3", Lang["CutL3"]
-    Gui_G()
-    _Gui.Add "Button", "x+15 w" pW " hp -Wrap vAuto", Lang["Auto"]
-    Gui_G()
-    _Gui.Add "Button", "x+15 w" w " hp -Wrap vRepR", Lang["RepR"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutR", Lang["CutR"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutR3", Lang["CutR3"]
-    Gui_G()
-    _Gui.Add "Button", "xm+" i " wp hp -Wrap vRepD", Lang["RepD"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutD", Lang["CutD"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp hp -Wrap vCutD3", Lang["CutD3"]
-    Gui_G()
+    _Gui.Add("Button", "xm+" i " yp w" w " hp -Wrap vRepU", Lang["RepU"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutU", Lang["CutU"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutU3", Lang["CutU3"])
+    G_G.Call()
+    _Gui.Add("Button", "xm wp hp -Wrap vRepL", Lang["RepL"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutL", Lang["CutL"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutL3", Lang["CutL3"])
+    G_G.Call()
+    _Gui.Add("Button", "x+15 w" pW " hp -Wrap vAuto", Lang["Auto"])
+    G_G.Call()
+    _Gui.Add("Button", "x+15 w" w " hp -Wrap vRepR", Lang["RepR"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutR", Lang["CutR"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutR3", Lang["CutR3"])
+    G_G.Call()
+    _Gui.Add("Button", "xm+" i " wp hp -Wrap vRepD", Lang["RepD"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutD", Lang["CutD"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp hp -Wrap vCutD3", Lang["CutD3"])
+    G_G.Call()
     ;--------------
-    _Gui.Add "Text", "x+60 ys+3 Section", Lang["SelGray"]
-    _Gui.Add "Edit", "x+3 yp-3 w60 vSelGray ReadOnly"
-    _Gui.Add "Text", "x+15 ys", Lang["SelColor"]
-    _Gui.Add "Edit", "x+3 yp-3 w150 vSelColor ReadOnly"
-    _Gui.Add "Text", "x+15 ys", Lang["SelR"]
-    _Gui.Add "Edit", "x+3 yp-3 w60 vSelR ReadOnly"
-    _Gui.Add "Text", "x+5 ys", Lang["SelG"]
-    _Gui.Add "Edit", "x+3 yp-3 w60 vSelG ReadOnly"
-    _Gui.Add "Text", "x+5 ys", Lang["SelB"]
-    _Gui.Add "Edit", "x+3 yp-3 w60 vSelB ReadOnly"
-    ;--------------
-    x:=w*6+pW+15*4
-    Tab:=_Gui.Add("Tab3", "x" x " y+15 -Wrap", StrSplit(Lang["s2"],"|"))
+    Tab:=_Gui.Add("Tab3", "ys -Wrap", StrSplit(Lang["s2"],"|"))
     Tab.UseTab(1)
-    _Gui.Add "Text", "x+15 y+15", Lang["Threshold"]
-    _Gui.Add "Edit", "x+15 w100 vThreshold"
-    _Gui.Add "Button", "x+15 yp-3 vGray2Two", Lang["Gray2Two"]
-    Gui_G()
+    _Gui.Add("Text", "x+30 y+35", Lang["Threshold"])
+    _Gui.Add("Edit", "x+15 w100 vThreshold")
+    _Gui.Add("Button", "x+15 yp-3 vGray2Two", Lang["Gray2Two"])
+    G_G.Call()
     Tab.UseTab(2)
-    _Gui.Add "Text", "x+15 y+15", Lang["GrayDiff"]
-    _Gui.Add "Edit", "x+15 w100 vGrayDiff", "50"
-    _Gui.Add "Button", "x+15 yp-3 vGrayDiff2Two", Lang["GrayDiff2Two"]
-    Gui_G()
+    _Gui.Add("Text", "x+30 y+35", Lang["GrayDiff"])
+    _Gui.Add("Edit", "x+15 w100 vGrayDiff", "50")
+    _Gui.Add("Button", "x+15 yp-3 vGrayDiff2Two", Lang["GrayDiff2Two"])
+    G_G.Call()
     Tab.UseTab(3)
-    _Gui.Add "Text", "x+15 y+15", Lang["Similar1"] " 0"
-    _Gui.Add "Slider", "x+0 w120 vSimilar1 +Center Page1 NoTicks ToolTip", 100
-    Gui_G()
-    _Gui.Add "Text", "x+0", "100"
-    _Gui.Add "Button", "x+15 yp-3 vColor2Two", Lang["Color2Two"]
-    Gui_G()
+    _Gui.Add("Text", "x+10 y+15 Section", Lang["Similar1"])
+    _Gui.Add("Edit", "x+5 w80 vSimilar1 Limit3")
+    _Gui.Add("UpDown", "vSim Range0-100", 90)
+    _Gui.Add("Button", "x+10 ys-2 vAddColorSim", Lang["AddColorSim"])
+    G_G.Call()
+    _Gui.Add("Text", "x+20 ys+4", Lang["DiffRGB2"])
+    _Gui.Add("Edit", "x+5 ys w80 vDiffRGB2 Limit3")
+    _Gui.Add("UpDown", "vdRGB2 Range0-255 Wrap", 16)
+    _Gui.Add("Button", "x+10 ys-2 vAddColorDiff", Lang["AddColorDiff"])
+    G_G.Call()
+    _Gui.Add("Button", "xs vUndo2", Lang["Undo2"])
+    G_G.Call()
+    _Gui.Add("Edit", "x+10 yp+2 w340 vColorList")
+    _Gui.Add("Button", "x+10 yp-2 vColor2Two", Lang["Color2Two"])
+    G_G.Call()
     Tab.UseTab(4)
-    _Gui.Add "Text", "x+15 y+15", Lang["Similar2"] " 0"
-    _Gui.Add "Slider", "x+0 w120 vSimilar2 +Center Page1 NoTicks ToolTip", 100
-    Gui_G()
-    _Gui.Add "Text", "x+0", "100"
-    _Gui.Add "Button", "x+15 yp-3 vColorPos2Two", Lang["ColorPos2Two"]
-    Gui_G()
+    _Gui.Add("Text", "x+30 y+35", Lang["Similar2"] " 0")
+    _Gui.Add("Slider", "x+0 w120 vSimilar2 +Center Page1 NoTicks ToolTip", 90)
+    _Gui.Add("Text", "x+0", "100")
+    _Gui.Add("Button", "x+15 yp-3 vColorPos2Two", Lang["ColorPos2Two"])
+    G_G.Call()
     Tab.UseTab(5)
-    _Gui.Add "Text", "x+10 y+15", Lang["DiffR"]
-    _Gui.Add "Edit", "x+5 w80 vDiffR Limit3"
-    _Gui.Add "UpDown", "vdR Range0-255 Wrap"
-    _Gui.Add "Text", "x+5", Lang["DiffG"]
-    _Gui.Add "Edit", "x+5 w80 vDiffG Limit3"
-    _Gui.Add "UpDown", "vdG Range0-255 Wrap"
-    _Gui.Add "Text", "x+5", Lang["DiffB"]
-    _Gui.Add "Edit", "x+5 w80 vDiffB Limit3"
-    _Gui.Add "UpDown", "vdB Range0-255 Wrap"
-    _Gui.Add "Button", "x+15 yp-3 vColorDiff2Two", Lang["ColorDiff2Two"]
-    Gui_G()
-    Tab.UseTab(6)
-    _Gui.Add "Text", "x+10 y+15", Lang["DiffRGB"]
-    _Gui.Add "Edit", "x+5 w80 vDiffRGB Limit3"
-    _Gui.Add "UpDown", "vdRGB Range0-255 Wrap"
-    _Gui.Add "Checkbox", "x+15 yp+5 vMultiColor", Lang["MultiColor"]
-    Gui_G()
-    _Gui.Add "Button", "x+15 yp-5 vUndo", Lang["Undo"]
-    Gui_G()
+    _Gui.Add("Text", "x+30 y+35", Lang["DiffRGB"])
+    _Gui.Add("Edit", "x+5 w80 vDiffRGB Limit3")
+    _Gui.Add("UpDown", "vdRGB Range0-255 Wrap", 16)
+    _Gui.Add("Checkbox", "x+15 yp+5 vMultiColor", Lang["MultiColor"])
+    G_G.Call()
+    _Gui.Add("Button", "x+15 yp-5 vUndo", Lang["Undo"])
+    G_G.Call()
     Tab.UseTab()
     ;--------------
-    _Gui.Add "Button", "xm vReset", Lang["Reset"]
-    Gui_G()
-    _Gui.Add "Checkbox", "x+15 yp+5 vModify", Lang["Modify"]
-    Gui_G()
-    _Gui.Add "Text", "x+30", Lang["Comment"]
-    _Gui.Add "Edit", "x+5 yp-2 w150 vComment"
-    _Gui.Add "Button", "x+10 yp-3 vSplitAdd", Lang["SplitAdd"]
-    Gui_G()
-    _Gui.Add "Button", "x+10 vAllAdd", Lang["AllAdd"]
-    Gui_G()
-    _Gui.Add "Button", "x+30 wp vOK", Lang["OK"]
-    Gui_G()
-    _Gui.Add "Button", "x+10 wp vCancel", Lang["Cancel"]
-    Gui_G()
-    _Gui.Add "Button", "xm vBind0", Lang["Bind0"]
-    Gui_G()
-    _Gui.Add "Button", "x+10 vBind1", Lang["Bind1"]
-    Gui_G()
-    _Gui.Add "Button", "x+10 vBind2", Lang["Bind2"]
-    Gui_G()
-    _Gui.Add "Button", "x+10 vBind3", Lang["Bind3"]
-    Gui_G()
-    _Gui.Add "Button", "x+10 vBind4", Lang["Bind4"]
-    Gui_G()
-    _Gui.Add "Button", "x+60 vSavePic2", Lang["SavePic2"]
-    Gui_G()
+    _Gui.Add("Button", "xm vReset", Lang["Reset"])
+    G_G.Call()
+    _Gui.Add("Checkbox", "x+15 yp+5 vModify", Lang["Modify"])
+    G_G.Call()
+    _Gui.Add("Text", "x+30", Lang["Comment"])
+    _Gui.Add("Edit", "x+5 yp-2 w250 vComment")
+    _Gui.Add("Button", "x+10 yp-3 vSplitAdd", Lang["SplitAdd"])
+    G_G.Call()
+    _Gui.Add("Button", "x+10 vAllAdd", Lang["AllAdd"])
+    G_G.Call()
+    _Gui.Add("Button", "x+30 wp vOK", Lang["OK"])
+    G_G.Call()
+    _Gui.Add("Button", "x+15 wp vCancel", Lang["Cancel"])
+    G_G.Call()
+    _Gui.Add("Button", "xm vBind0", Lang["Bind0"])
+    G_G.Call()
+    _Gui.Add("Button", "x+10 vBind1", Lang["Bind1"])
+    G_G.Call()
+    _Gui.Add("Button", "x+10 vBind2", Lang["Bind2"])
+    G_G.Call()
+    _Gui.Add("Button", "x+10 vBind3", Lang["Bind3"])
+    G_G.Call()
+    _Gui.Add("Button", "x+10 vBind4", Lang["Bind4"])
+    G_G.Call()
+    _Gui.Add("Button", "x+30 vSavePic2", Lang["SavePic2"])
+    G_G.Call()
     _Gui.Title:=Lang["s3"]
-    _Gui.Show "Hide"
+    _Gui.Show("Hide")
     ;--------------------
     Try FindText_SubPic.Destroy()
-    FindText_SubPic:=_Gui:=Gui()
-    _Gui.Opt "+Parent" parent_id " +AlwaysOnTop -Caption +ToolWindow -DPIScale"
+    FindText_SubPic:=_Gui:=Gui()  ; Don't use +AlwaysOnTop
+    _Gui.Opt("+Parent" parent_id " -Caption +ToolWindow -DPIScale")
     _Gui.MarginX:=0, _Gui.MarginY:=0
     _Gui.BackColor:="White"
-    id:=_Gui.Add("Pic", "x0 y0 w500 h500"), sub_hpic:=id.Hwnd
+    id:=_Gui.Add("Pic", "x0 y0 w100 h100"), sub_hpic:=id.Hwnd
     _Gui.Title:="SubPic"
-    _Gui.Show "NA x0 y0"
+    _Gui.Show("Hide")
     return
   Case "MakeMainWindow":
     Try FindText_Main.Destroy()
     FindText_Main:=_Gui:=Gui()
-    _Gui.Opt "+LastFound +AlwaysOnTop -DPIScale"
+    _Gui.Opt("+LastFound +AlwaysOnTop -DPIScale")
     _Gui.MarginX:=15, _Gui.MarginY:=10
     _Gui.BackColor:=WindowColor
-    _Gui.SetFont "s12", "Verdana"
-    _Gui.Add "Text", "xm", Lang["NowHotkey"]
-    _Gui.Add "Edit", "x+5 w160 vNowHotkey ReadOnly"
-    _Gui.Add "Hotkey", "x+5 w160 vSetHotkey1"
-    s:="F1|F2|F3|F4|F5|F6|F7|F8|F9|F10|F11|F12|LWin|MButton"
+    _Gui.SetFont("s12", "Verdana")
+    _Gui.Add("Text", "xm", Lang["NowHotkey"])
+    _Gui.Add("Edit", "x+5 w160 vNowHotkey ReadOnly")
+    _Gui.Add("Hotkey", "x+5 w160 vSetHotkey1")
+    s:="F1|F2|F3|F4|F5|F6|F7|F8|F9|F10|F11|F12|LWin|Ctrl|Shift|Space|MButton"
       . "|ScrollLock|CapsLock|Ins|Esc|BS|Del|Tab|Home|End|PgUp|PgDn"
       . "|NumpadDot|NumpadSub|NumpadAdd|NumpadDiv|NumpadMult"
-    _Gui.Add "DDL", "x+5 w160 vSetHotkey2", StrSplit(s,"|")
-    _Gui.Add "Button", "x+15 vApply", Lang["Apply"]
-    Gui_G()
-    _Gui.Add "GroupBox", "xm y+0 w280 h55 vMyGroup cBlack"
-    _Gui.Add "Text", "xp+15 yp+20 Section", Lang["Myww"] ": "
-    _Gui.Add "Text", "x+0 w80", nW//2
-    _Gui.Add "UpDown", "vMyww Range1-100", nW//2
-    _Gui.Add "Text", "x+15 ys", Lang["Myhh"] ": "
-    _Gui.Add "Text", "x+0 w80", nH//2
-    _Gui.Add "UpDown", "vMyhh Range1-100", nH//2
-    this.LastCtrl().GetPos(&pX, &pY, &pW, &pH)
+    _Gui.Add("DDL", "x+5 w160 vSetHotkey2", StrSplit(s,"|"))
+    _Gui.Add("Button", "x+15 vApply", Lang["Apply"])
+    G_G.Call()
+    _Gui.Add("GroupBox", "xm y+0 w280 h55 vMyGroup cBlack")
+    _Gui.Add("Text", "xp+15 yp+20 Section", Lang["Myww"] ": ")
+    _Gui.Add("Text", "x+0 w80", nW//2)
+    _Gui.Add("UpDown", "vMyww Range1-100", nW//2)
+    _Gui.Add("Text", "x+15 ys", Lang["Myhh"] ": ")
+    _Gui.Add("Text", "x+0 w80", nH//2)
+    id:=_Gui.Add("UpDown", "vMyhh Range1-100", nH//2)
+    id.GetPos(&pX, &pY, &pW, &pH)
     _Gui["MyGroup"].Move(,, pX+pW, pH+30)
-    _Gui.Add "Checkbox", "x+100 ys vAddFunc", Lang["AddFunc"] " FindText()"
-    this.LastCtrl().GetPos(&pX, &pY, &pW, &pH)
+    id:=_Gui.Add("Checkbox", "x+100 ys vAddFunc", Lang["AddFunc"] " FindText()")
+    id.GetPos(&pX, &pY, &pW, &pH)
     pW:=pX+pW-15, pW:=(pW<720?720:pW), w:=pW//5
-    _Gui.Add "Button", "xm y+18 w" w " vCutL2", Lang["CutL2"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vCutR2", Lang["CutR2"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vCutU2", Lang["CutU2"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vCutD2", Lang["CutD2"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vUpdate", Lang["Update"]
-    Gui_G()
-    _Gui.SetFont "s6 bold", "Verdana"
-    _Gui.Add "Edit", "xm y+10 w" pW " h260 vMyPic -Wrap HScroll"
-    _Gui.SetFont "s12 norm", "Verdana"
+    _Gui.Add("Button", "xm y+18 w" w " vCutL2", Lang["CutL2"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vCutR2", Lang["CutR2"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vCutU2", Lang["CutU2"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vCutD2", Lang["CutD2"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vUpdate", Lang["Update"])
+    G_G.Call()
+    _Gui.SetFont("s6 bold", "Verdana")
+    _Gui.Add("Edit", "xm y+10 w" pW " h260 vMyPic -Wrap HScroll")
+    _Gui.SetFont("s12 norm", "Verdana")
     w:=pW//3
-    _Gui.Add "Button", "xm w" w " vCapture", Lang["Capture"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vTest", Lang["Test"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vCopy", Lang["Copy"]
-    Gui_G()
-    _Gui.Add "Button", "xm y+0 wp vCaptureS", Lang["CaptureS"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vGetRange", Lang["GetRange"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 wp vGetOffset", Lang["GetOffset"]
-    Gui_G()
-    _Gui.Add "Edit", "xm y+10 w130 hp vClipText"
-    _Gui.Add "Button", "x+0 vPaste", Lang["Paste"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 vTestClip", Lang["TestClip"]
-    Gui_G()
-    _Gui.Add "Button", "x+0 vGetClipOffset", Lang["GetClipOffset"]
-    Gui_G()
-    r:=pW
-    this.LastCtrl().GetPos(&pX, &pY, &pW, &pH)
-    w:=((r+15)-(pX+pW))//2, pW:=r
-    _Gui.Add "Edit", "x+0 w" w " hp vOffset"
-    _Gui.Add "Button", "x+0 wp vCopyOffset", Lang["CopyOffset"]
-    Gui_G()
-    _Gui.SetFont "cBlue"
+    _Gui.Add("Button", "xm w" w " vCapture", Lang["Capture"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vTest", Lang["Test"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vCopy", Lang["Copy"])
+    G_G.Call()
+    _Gui.Add("Button", "xm y+0 wp vCaptureS", Lang["CaptureS"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vGetRange", Lang["GetRange"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 wp vGetOffset", Lang["GetOffset"])
+    G_G.Call()
+    _Gui.Add("Edit", "xm y+10 w130 hp vClipText")
+    _Gui.Add("Button", "x+0 vPaste", Lang["Paste"])
+    G_G.Call()
+    _Gui.Add("Button", "x+0 vTestClip", Lang["TestClip"])
+    G_G.Call()
+    id:=_Gui.Add("Button", "x+0 vGetClipOffset", Lang["GetClipOffset"])
+    G_G.Call()
+    id.GetPos(&x,, &w)
+    w:=((pW+15)-(x+w))//2
+    _Gui.Add("Edit", "x+0 w" w " hp vOffset")
+    _Gui.Add("Button", "x+0 wp vCopyOffset", Lang["CopyOffset"])
+    G_G.Call()
+    _Gui.SetFont("cBlue")
     id:=_Gui.Add("Edit", "xm w" pW " h250 vscr -Wrap HScroll"), hscr:=id.Hwnd
     _Gui.Title:=Lang["s4"]
-    _Gui.Show "Hide"
-    Gui_("LoadScr")
-    OnExit(Gui_SaveScr)
+    _Gui.Show("Hide")
+    G_.Call("LoadScr")
+    OnExit(G_SaveScr)
     return
   Case "LoadScr":
     f:=A_Temp "\~scr2.tmp"
     Try s:="", s:=FileRead(f)
-    _Gui:=FindText_Main
-    _Gui["scr"].Value:=s
+    FindText_Main["scr"].Value:=s
     return
   Case "SaveScr":
     f:=A_Temp "\~scr2.tmp"
-    _Gui:=FindText_Main
-    s:=_Gui["scr"].Value
-    Try FileDelete(f)
-    FileAppend(s, f)
+    s:=FindText_Main["scr"].Value
+    Try FileDelete f
+    FileAppend s, f
     return
   Case "Capture", "CaptureS":
     _Gui:=FindText_Main
-    if WinExist()!=_Gui.Hwnd
-      return this.GetRange()
-    this.Hide()
-    if !InStr(cmd, "CaptureS")
+    if show_gui:=(WinExist("ahk_id" _Gui.Hwnd))
+      this.Hide()
+    if (cmd="Capture")
     {
-      _Gui:=FindText_Main
       w:=_Gui["Myww"].Value
       h:=_Gui["Myhh"].Value
       p:=this.GetRange(w, h)
@@ -2695,34 +2597,36 @@ Gui(cmd, arg1:="", args*)
       _Gui:=FindText_Capture
       _Gui["MyTab1"].Choose(2)
     }
-    this.ScreenShot()
     n:=150000, x:=y:=-n, w:=h:=2*n
-    hBM:=this.BitmapFromScreen(&x,&y,&w,&h,0)
-    Gui_("CaptureUpdate")
-    Gui_("PicUpdate")
+    hBM:=this.BitmapFromScreen(&x,&y,&w,&h,(arg1=0?0:1))
+    G_.Call("CaptureUpdate")
+    G_.Call("PicUpdate")
+    FindText_SubPic.Show()
     Names:=[], s:=""
     Loop Files, SavePicDir "*.bmp"
       Names.Push(v:=A_LoopFileFullPath), s.="|" RegExReplace(v,"i)^.*\\|\.bmp$")
     _Gui["SelectBox"].Delete()
     _Gui["SelectBox"].Add(StrSplit(Trim(s,"|"),"|"))
     ;------------------------
-    Loop Parse, "SelGray|SelColor|SelR|SelG|SelB|Threshold|Comment", "|"
+    s:="SelGray|SelColor|SelR|SelG|SelB|Threshold|Comment|ColorList"
+    Loop Parse, s, "|"
       _Gui[A_LoopField].Value:=""
     _Gui["Modify"].Value:=Modify:=0
     _Gui["MultiColor"].Value:=MultiColor:=0
     _Gui["GrayDiff"].Value:=50
     _Gui["Gray2Two"].Focus()
     _Gui["Gray2Two"].Opt("+Default")
-    _Gui.Opt "+LastFound"
-    _Gui.Show "Center"
+    _Gui.Show("Center")
     Event:=Result:=""
     DetectHiddenWindows 0
     Critical "Off"
-    WinWaitClose "ahk_id " WinExist()
+    WinWaitClose "ahk_id " _Gui.Hwnd
     Critical
     ToolTip
+    FindText_SubPic.Hide()
     _Gui:=FindText_Main
-    ;--------------------------------
+    A_Clipboard:=Text:=RegExMatch(Result,"\|<[^>\n]*>[^$\n]+\$[^`"'\r\n]+",&r)?r[0]:""
+    ;------------------------
     if (bind_mode!="")
     {
       tt:=WinGetTitle(Bind_ID)
@@ -2735,13 +2639,11 @@ Gui(cmd, arg1:="", args*)
     }
     if (Event="OK")
     {
+      s:=""
       if (!A_IsCompiled)
-        s:=FileRead(A_LineFile)
-      else
-        s:=this.GetScript()
-      re:="i)\n\s*FindText[^\n]+args\*[\s\S]*?Script_End[(){\s]+}"
-      if RegExMatch(s, re, &r)
-        s:="`n;==========`n" r[0] "`n"
+        Try s:=FileRead(A_LineFile)
+      re:="i)\n\s*FindText[^\n]+args\*[\s\S]*"
+      s:=RegExMatch(s, re, &r) ? "`n;==========`n" r[0] "`n" : ""
       _Gui["scr"].Value:=Result "`n" s
       _Gui["MyPic"].Value:=Trim(this.ASCII(Result),"`n")
     }
@@ -2759,22 +2661,24 @@ Gui(cmd, arg1:="", args*)
       this.EditScroll(hscr, "\Q" r[0] "\E")
     Event:=Result:=s:=""
     ;----------------------
-    Gui_Show()
-    return
+    if (show_gui && arg1="")
+      G_Show.Call()
+    return Text
   Case "CaptureUpdate":
     nX:=sx, nY:=sy, nW:=sw, nH:=sh
     bits:=this.GetBitsFromScreen(&nX,&nY,&nW,&nH,0,&zx,&zy)
     cors:=Map(), cors.Default:=0
-    , cut:=Map(), cut.Default:=0
+    , show:=Map(), show.Default:=0
     , ascii:=Map(), ascii.Default:=0
-    bg:=color:="", dx:=dy:=CutLeft:=CutRight:=CutUp:=CutDown:=0
+    , SelPos:=bg:=color:=""
+    , dx:=dy:=CutLeft:=CutRight:=CutUp:=CutDown:=0
     ListLines (lls:=A_ListLines)?0:0
     if (nW>0 && nH>0 && bits.Scan0)
     {
-      j:=bits.Stride-nW*4, p:=bits.Scan0+(nY-zy)*bits.Stride+(nX-zx)*4-4-j
+      j:=bits.Stride-nW*4, p:=bits.Scan0+(nY-zy)*bits.Stride+(nX-zx)*4-j-4
       Loop nH + 0*(k:=0)
       Loop nW + 0*(p+=j)
-        cors[++k]:=NumGet(p+=4,"uint")
+        show[++k]:=1, cors[k]:=NumGet(p+=4,"uint")
     }
     Loop 25 + 0*(ty:=dy-1)*(k:=0)
     Loop 71 + 0*(tx:=dx-1)*(ty++)
@@ -2796,14 +2700,23 @@ Gui(cmd, arg1:="", args*)
     _Gui:=FindText_Capture
     _Gui["MySlider3"].Value:=0
     _Gui["MySlider4"].Value:=0
-    Gui_("MySlider3")
+    G_.Call("MySlider3")
+    return
+  Case "MySlider3", "MySlider4":
+    _Gui:=FindText_Capture
+    _Gui[parent_id].GetPos(,, &w, &h)
+    MySlider3:=_Gui["MySlider3"].Value
+    MySlider4:=_Gui["MySlider4"].Value
+    FindText_SubPic[sub_hpic].GetPos(,, &pW, &pH)
+    x:=pW>w ? -Round((pW-w)*MySlider3/100) : 0
+    y:=pH>h ? -Round((pH-h)*MySlider4/100) : 0
+    FindText_SubPic.Show("NA x" x " y" y " w" pW " h" pH)
     return
   Case "Reset":
-    Gui_("CaptureUpdate")
+    G_.Call("CaptureUpdate")
     return
   Case "LoadPic":
-    _Gui:=FindText_Capture
-    _Gui.Opt "+OwnDialogs"
+    FindText_Capture.Opt("+OwnDialogs")
     f:=arg1
     if (f="")
     {
@@ -2816,47 +2729,52 @@ Gui(cmd, arg1:="", args*)
     }
     if !FileExist(f)
     {
-      MsgBox(Lang["s17"] " !", "Tip", "4096 T1")
+      MsgBox Lang["s17"] " !", "Tip", "4096 T1"
       return
     }
     this.ShowPic(f, 0, &sx, &sy, &sw, &sh)
     hBM:=this.BitmapFromScreen(&sx, &sy, &sw, &sh, 0)
     sw:=Min(sw,200), sh:=Min(sh,200)
-    Gui_("CaptureUpdate")
-    Gui_("PicUpdate")
+    G_.Call("CaptureUpdate")
+    G_.Call("PicUpdate")
     return
   Case "SavePic":
     _Gui:=FindText_Capture
     SelectBox:=_Gui["SelectBox"].Value
     Try f:="", f:=Names[SelectBox]
-    _Gui.Hide
+    _Gui.Hide()
     this.ShowPic(f)
-    pos:=this.SnapShot(0)
-    Gui_("ScreenShot", pos[1] "|" pos[2] "|" pos[3] "|" pos[4] "|0")
+    Try GuiFromHwnd(WinExist("Show Pic")).Opt("+OwnDialogs")
+    Loop
+    {
+      p:=this.GetRange2()
+      if MsgBox(Lang["s15"] " !", "Tip", "4100")="Yes"
+        Break
+    }
+    G_.Call("ScreenShot", p[1] "|" p[2] "|" p[3] "|" p[4] "|0")
     this.ShowPic()
     return
   Case "SelectBox":
-    _Gui:=FindText_Capture
-    SelectBox:=_Gui["SelectBox"].Value
+    SelectBox:=FindText_Capture["SelectBox"].Value
     Try f:="", f:=Names[SelectBox]
     if (f!="")
-      Gui_("LoadPic", f)
+      G_.Call("LoadPic", f)
     return
   Case "ClearAll":
-    FindText_Capture.Hide
-    Try FileDelete(SavePicDir "*.bmp")
+    FindText_Capture.Hide()
+    Try FileDelete SavePicDir "*.bmp"
     return
   Case "OpenDir":
-    FindText_Capture.Minimize
+    FindText_Capture.Minimize()
     if !FileExist(SavePicDir)
-      DirCreate(SavePicDir)
+      DirCreate SavePicDir
     Run SavePicDir
     return
   Case "GetRange":
     _Gui:=FindText_Main
-    _Gui.Opt "+LastFound"
+    _Gui.Opt("+LastFound")
     this.Hide()
-    p:=this.SnapShot(), v:=p[1] ", " p[2] ", " p[3] ", " p[4]
+    p:=this.GetRange2(), v:=p[1] ", " p[2] ", " p[3] ", " p[4]
     s:=_Gui["scr"].Value
     re:="i)(=FindText\([^\n]*?)([^(,\n]*,){4}([^,\n]*,[^,\n]*,[^,\n]*Text)"
     if SubStr(s,1,s~="i)\n\s*FindText[^\n]+args\*")~=re
@@ -2865,11 +2783,11 @@ Gui(cmd, arg1:="", args*)
       _Gui["scr"].Value:=s
     }
     _Gui["Offset"].Value:=v
-    Gui_Show()
+    G_Show.Call()
     return
   Case "Test", "TestClip":
     _Gui:=FindText_Main
-    _Gui.Opt "+LastFound"
+    _Gui.Opt("+LastFound")
     this.Hide()
     ;----------------------
     if (cmd="Test")
@@ -2891,20 +2809,20 @@ Gui(cmd, arg1:="", args*)
       if RegExMatch(s, "<[^>\n]*>[^$\n]+\$[^`"'\r\n]+", &r)
         v:=this.FindText(&X, &Y, 0,0,0,0, 0,0, r[0])
       r:=StrSplit(Lang["s8"] "||||", "|")
-      MsgBox(r[1] ":`t" (IsObject(v)?v.Length:v) "`n`n"
+      MsgBox r[1] ":`t" (IsObject(v)?v.Length:v) "`n`n"
         . r[2] ":`t" (A_TickCount-t) " " r[3] "`n`n"
         . r[4] ":`t" X ", " Y "`n`n"
-        . r[5] ":`t<" (IsObject(v)?v[1].id:"") ">", "Tip", "4096 T3")
+        . r[5] ":`t<" (IsObject(v)?v[1].id:"") ">", "Tip", "4096 T3"
       Try For i,j in v
         if (i<=2)
           this.MouseTip(j.x, j.y)
       v:="", A_Clipboard:=X "," Y
     }
     ;----------------------
-    Gui_Show()
+    G_Show.Call()
     return
   Case "GetOffset", "GetClipOffset":
-    FindText_Main.Hide
+    FindText_Main.Hide()
     p:=this.GetRange()
     _Gui:=FindText_Main
     if (cmd="GetOffset")
@@ -2925,36 +2843,31 @@ Gui(cmd, arg1:="", args*)
       }
       _Gui["Offset"].Value:=r
     }
-    s:="", Gui_Show()
+    s:="", G_Show.Call()
     return
   Case "Paste":
-    s:=A_Clipboard
-    if RegExMatch(s, "\|?<[^>\n]*>[^$\n]+\$[^`"'\r\n]+", &r)
+    if RegExMatch(A_Clipboard, "\|?<[^>\n]*>[^$\n]+\$[^`"'\r\n]+", &r)
     {
-      _Gui:=FindText_Main
-      _Gui["ClipText"].Value:=r[0]
-      _Gui["MyPic"].Value:=Trim(this.ASCII(r[0]),"`n")
+      FindText_Main["ClipText"].Value:=r[0]
+      FindText_Main["MyPic"].Value:=Trim(this.ASCII(r[0]),"`n")
     }
     return
   Case "CopyOffset":
-    _Gui:=FindText_Main
-    s:=_Gui["Offset"].Value
-    A_Clipboard:=s
+    A_Clipboard:=FindText_Main["Offset"].Value
     return
   Case "Copy":
-    _Gui:=FindText_Main
     s:=EditGetSelectedText(hscr)
     if (s="")
     {
-      s:=_Gui["scr"].Value
-      r:=_Gui["AddFunc"].Value
+      s:=FindText_Main["scr"].Value
+      r:=FindText_Main["AddFunc"].Value
       if (r != 1)
         s:=RegExReplace(s, "i)\n\s*FindText[^\n]+args\*[\s\S]*")
         , s:=RegExReplace(s, "i)\n; ok:=FindText[\s\S]*")
         , s:=SubStr(s, (s~="i)\n[ \t]*Text"))
     }
     A_Clipboard:=RegExReplace(s, "\R", "`r`n")
-    ControlFocus(hscr)
+    ControlFocus hscr
     return
   Case "Apply":
     _Gui:=FindText_Main
@@ -2965,7 +2878,7 @@ Gui(cmd, arg1:="", args*)
       Try Hotkey "*" NowHotkey,, "Off"
     k:=SetHotkey1!="" ? SetHotkey1 : SetHotkey2
     if (k!="")
-      Try Hotkey "*" k, Gui_ScreenShot, "On"
+      Try Hotkey "*" k, G_ScreenShot, "On"
     _Gui["NowHotkey"].Value:=k
     _Gui["SetHotkey1"].Value:=""
     _Gui["SetHotkey2"].Choose(0)
@@ -2973,7 +2886,7 @@ Gui(cmd, arg1:="", args*)
   Case "ScreenShot":
     Critical
     if !FileExist(SavePicDir)
-      DirCreate(SavePicDir)
+      DirCreate SavePicDir
     Loop
       f:=SavePicDir . Format("{:03d}.bmp",A_Index)
     Until !FileExist(f)
@@ -2986,12 +2899,12 @@ Gui(cmd, arg1:="", args*)
     this.BindWindow(Bind_ID, bind_mode:=SubStr(cmd,5))
     n:=150000, x:=y:=-n, w:=h:=2*n
     hBM:=this.BitmapFromScreen(&x,&y,&w,&h,1)
-    Gui_("PicUpdate")
+    G_.Call("PicUpdate")
     FindText_Capture["MyTab1"].Choose(2)
     this.BindWindow(0)
     return
   Case "MySlider1", "MySlider2":
-    SetTimer Gui_Slider, -10
+    SetTimer G_Slider, -10
     return
   Case "Slider":
     Critical
@@ -3006,33 +2919,20 @@ Gui(cmd, arg1:="", args*)
     Loop 25 + 0*(ty:=dy-1)*(k:=0)
     Loop 71 + 0*(tx:=dx-1)*(ty++)
     {
-      c:=((++tx)>=nW || ty>=nH || cut[i:=ty*nW+tx+1]
-      ? WindowColor : bg="" ? cors[i] : ascii[i])
+      c:=((++tx)>=nW || ty>=nH || !show[i:=ty*nW+tx+1]
+      ? WindowColor : bg="" ? cors[i] : ascii[i] ? 0 : 0xFFFFFF)
       SendMessage 0x2001,0,(c&0xFF)<<16|c&0xFF00|(c>>16)&0xFF,C_[++k]
     }
     Loop 71*(oldx!=dx) + 0*(i:=nW*nH+dx)*(k:=71*25)
-      SendMessage 0x2001,0,(cut[++i]?0x0000FF:0xAAFFFF),C_[++k]
+      SendMessage 0x2001,0,(show[++i]?0x0000FF:0xAAFFFF),C_[++k]
     ListLines lls
     oldx:=dx, oldy:=dy
     return
-  Case "MySlider3", "MySlider4":
-    _Gui:=FindText_Capture
-    _Gui[parent_id].GetPos(,, &pW, &pH)
-    MySlider3:=_Gui["MySlider3"].Value
-    MySlider4:=_Gui["MySlider4"].Value
-    w:=pW, h:=pH
-    FindText_SubPic[sub_hpic].GetPos(,, &pW, &pH)
-    x:=pW>w ? -Round((pW-w)*MySlider3/100) : 0
-    y:=pH>h ? -Round((pH-h)*MySlider4/100) : 0
-    FindText_SubPic.Show "NA x" x " y" y " w" pW " h" pH
-    return
-  Case "RepColor":
-    cut[k]:=0, c:=(bg="" ? cors[k] : ascii[k])
-    if (tx:=Mod(k-1,nW)-dx)>=0 && tx<71 && (ty:=(k-1)//nW-dy)>=0 && ty<25
-      SendMessage 0x2001,0,(c&0xFF)<<16|c&0xFF00|(c>>16)&0xFF,C_[ty*71+tx+1]
-    return
-  Case "CutColor":
-    cut[k]:=1, c:=WindowColor
+  Case "RepColor", "CutColor":
+    if (cmd="RepColor")
+      show[k]:=1, c:=(bg="" ? cors[k] : ascii[k] ? 0 : 0xFFFFFF)
+    else
+      show[k]:=0, c:=WindowColor
     if (tx:=Mod(k-1,nW)-dx)>=0 && tx<71 && (ty:=(k-1)//nW-dy)>=0 && ty<25
       SendMessage 0x2001,0,(c&0xFF)<<16|c&0xFF00|(c>>16)&0xFF,C_[ty*71+tx+1]
     return
@@ -3041,78 +2941,78 @@ Gui(cmd, arg1:="", args*)
       return
     k:=CutLeft-nW, CutLeft--
     Loop nH
-      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && Gui_("RepColor"))
+      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && G_.Call("RepColor"))
     return
   Case "CutL":
     if (CutLeft+CutRight>=nW)
       return
     CutLeft++, k:=CutLeft-nW
     Loop nH
-      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && Gui_("CutColor"))
+      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && G_.Call("CutColor"))
     return
   Case "CutL3":
     Loop 3
-      Gui_("CutL")
+      G_.Call("CutL")
     return
   Case "RepR":
     if (CutRight<=0) || (bg!="" && InStr(color,"**") && CutRight=1)
       return
     k:=1-CutRight, CutRight--
     Loop nH
-      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && Gui_("RepColor"))
+      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && G_.Call("RepColor"))
     return
   Case "CutR":
     if (CutLeft+CutRight>=nW)
       return
     CutRight++, k:=1-CutRight
     Loop nH
-      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && Gui_("CutColor"))
+      k+=nW, (A_Index>CutUp && A_Index<nH+1-CutDown && G_.Call("CutColor"))
     return
   Case "CutR3":
     Loop 3
-      Gui_("CutR")
+      G_.Call("CutR")
     return
   Case "RepU":
     if (CutUp<=0) || (bg!="" && InStr(color,"**") && CutUp=1)
       return
     k:=(CutUp-1)*nW, CutUp--
     Loop nW
-      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && Gui_("RepColor"))
+      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && G_.Call("RepColor"))
     return
   Case "CutU":
     if (CutUp+CutDown>=nH)
       return
     CutUp++, k:=(CutUp-1)*nW
     Loop nW
-      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && Gui_("CutColor"))
+      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && G_.Call("CutColor"))
     return
   Case "CutU3":
     Loop 3
-      Gui_("CutU")
+      G_.Call("CutU")
     return
   Case "RepD":
     if (CutDown<=0) || (bg!="" && InStr(color,"**") && CutDown=1)
       return
     k:=(nH-CutDown)*nW, CutDown--
     Loop nW
-      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && Gui_("RepColor"))
+      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && G_.Call("RepColor"))
     return
   Case "CutD":
     if (CutUp+CutDown>=nH)
       return
     CutDown++, k:=(nH-CutDown)*nW
     Loop nW
-      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && Gui_("CutColor"))
+      k++, (A_Index>CutLeft && A_Index<nW+1-CutRight && G_.Call("CutColor"))
     return
   Case "CutD3":
     Loop 3
-      Gui_("CutD")
+      G_.Call("CutD")
     return
   Case "Gray2Two":
     ListLines (lls:=A_ListLines)?0:0
-    gray:=Map(), gray.Default:=0, k:=0
+    gs:=Map(), gs.Default:=0, k:=0
     Loop nW*nH
-      gray[++k]:=((((c:=cors[k])>>16)&0xFF)*38+((c>>8)&0xFF)*75+(c&0xFF)*15)>>7
+      gs[++k]:=((((c:=cors[k])>>16)&0xFF)*38+((c>>8)&0xFF)*75+(c&0xFF)*15)>>7
     _Gui:=FindText_Capture
     _Gui["Threshold"].Focus()
     Threshold:=_Gui["Threshold"].Value
@@ -3122,8 +3022,8 @@ Gui(cmd, arg1:="", args*)
       Loop 256
         pp[A_Index-1]:=0
       Loop nW*nH
-        if (!cut[A_Index])
-          pp[gray[A_Index]]++
+        if (show[A_Index])
+          pp[gs[A_Index]]++
       IP0:=IS0:=0
       Loop 256
         k:=A_Index-1, IP0+=k*pp[k], IS0+=pp[k]
@@ -3145,14 +3045,9 @@ Gui(cmd, arg1:="", args*)
     Threshold:=Round(Threshold)
     color:="*" Threshold, k:=i:=0
     Loop nW*nH
-      ascii[++k]:=v:=(gray[k]<=Threshold
-      ? 0x000000:0xFFFFFF), (!cut[k] && i:=(v?i-1:i+1))
-    bg:=(i>0 ? "1":"0")
-    ;--------------
-    Loop 25 + 0*(ty:=dy-1)*(k:=0)
-    Loop 71 + 0*(tx:=dx-1)*(ty++)
-    if (k++)*0 + (++tx)<nW && ty<nH && !cut[i:=ty*nW+tx+1]
-        SendMessage 0x2001,0,ascii[i],C_[k]
+      ascii[++k]:=v:=(gs[k]<=Threshold)
+      , (show[k] && i:=(v?i+1:i-1))
+    bg:=(i>0 ? "1":"0"), G_.Call("BlackWhite")
     ListLines lls
     return
   Case "GrayDiff2Two":
@@ -3160,116 +3055,138 @@ Gui(cmd, arg1:="", args*)
     GrayDiff:=_Gui["GrayDiff"].Value
     if (GrayDiff="")
     {
-      _Gui.Opt "+OwnDialogs"
-      MsgBox(Lang["s11"] " !", "Tip", "4096 T1")
+      _Gui.Opt("+OwnDialogs")
+      MsgBox Lang["s11"] " !", "Tip", "4096 T1"
       return
     }
     ListLines (lls:=A_ListLines)?0:0
-    gray:=Map(), gray.Default:=0, k:=0
+    gs:=Map(), gs.Default:=0, k:=0
     Loop nW*nH
-      gray[++k]:=((((c:=cors[k])>>16)&0xFF)*38+((c>>8)&0xFF)*75+(c&0xFF)*15)>>7
+      gs[++k]:=((((c:=cors[k])>>16)&0xFF)*38+((c>>8)&0xFF)*75+(c&0xFF)*15)>>7
     if (CutLeft=0)
-      Gui_("CutL")
+      G_.Call("CutL")
     if (CutRight=0)
-      Gui_("CutR")
+      G_.Call("CutR")
     if (CutUp=0)
-      Gui_("CutU")
+      G_.Call("CutU")
     if (CutDown=0)
-      Gui_("CutD")
+      G_.Call("CutD")
     GrayDiff:=Round(GrayDiff)
     color:="**" GrayDiff, k:=i:=0
     Loop nW*nH
-      j:=gray[++k]+GrayDiff
-      , ascii[k]:=v:=(gray[k-1]>j || gray[k+1]>j
-      || gray[k-nW]>j || gray[k+nW]>j
-      || gray[k-nW-1]>j || gray[k-nW+1]>j
-      || gray[k+nW-1]>j || gray[k+nW+1]>j
-      ? 0x000000:0xFFFFFF), (!cut[k] && i:=(v?i-1:i+1))
-    bg:=(i>0 ? "1":"0")
-    ;--------------
-    Loop 25 + 0*(ty:=dy-1)*(k:=0)
-    Loop 71 + 0*(tx:=dx-1)*(ty++)
-    if (k++)*0 + (++tx)<nW && ty<nH && !cut[i:=ty*nW+tx+1]
-      SendMessage 0x2001,0,ascii[i],C_[k]
+      j:=gs[++k]+GrayDiff
+      , ascii[k]:=v:=( gs[k-1]>j || gs[k+1]>j
+      || gs[k-nW]>j || gs[k+nW]>j
+      || gs[k-nW-1]>j || gs[k-nW+1]>j
+      || gs[k+nW-1]>j || gs[k+nW+1]>j )
+      , (show[k] && i:=(v?i+1:i-1))
+    bg:=(i>0 ? "1":"0"), G_.Call("BlackWhite")
     ListLines lls
     return
-  Case "Color2Two", "ColorPos2Two":
+  Case "AddColorSim", "AddColorDiff":
     _Gui:=FindText_Capture
     c:=_Gui["SelColor"].Value
     if (c="")
     {
-      _Gui.Opt "+OwnDialogs"
-      MsgBox(Lang["s12"] " !", "Tip", "4096 T1")
+      _Gui.Opt("+OwnDialogs")
+      MsgBox Lang["s12"] " !", "Tip", "4096 T1"
       return
     }
-    UsePos:=(cmd="ColorPos2Two")
-    n:=this.Floor(_Gui[UsePos?"Similar2":"Similar1"].Value)
-    n:=Round(n/100,2), color:=StrReplace(c,"0x") "@" n
+    s:=_Gui["ColorList"].Value, c:=StrReplace(c,"0x")
+    if InStr(cmd, "Sim")
+      v:=_Gui["Sim"].Value, v:=c "@" Round(v/100,2)
+      , s:=RegExReplace("/" s, "/" c "@[^/]*") . "/" v
+    else
+      v:=_Gui["dRGB2"].Value, v:=c "-" Format("{:06X}",v<<16|v<<8|v)
+      , s:=RegExReplace("/" s, "/" c "-[^/]*") . "/" v
+    _Gui["ColorList"].Value:=Trim(s, "/")
+    ControlSend "{End}", _Gui["ColorList"].Hwnd
+    G_.Call("Color2Two")
+    return
+  Case "Undo2":
+    _Gui:=FindText_Capture
+    s:=_Gui["ColorList"].Value
+    s:=RegExReplace("/" s, "/[^/]+$")
+    _Gui["ColorList"].Value:=Trim(s, "/")
+    ControlSend "{End}", _Gui["ColorList"].Hwnd
+    return
+  Case "Color2Two":
+    _Gui:=FindText_Capture
+    color:=Trim(_Gui["ColorList"].Value, "/")
+    if (color="")
+    {
+      _Gui.Opt("+OwnDialogs")
+      MsgBox Lang["s16"] " !", "Tip", "4096 T1"
+      return
+    }
+    ListLines (lls:=A_ListLines)?0:0
+    k:=i:=v:=0, arr:=StrSplit(color, "/")
+    Loop nW*nH
+    {
+      c:=cors[++k], rr:=(c>>16)&0xFF, gg:=(c>>8)&0xFF, bb:=c&0xFF
+      For k1,v1 in arr
+      {
+        c:=this.ToRGB(StrSplit(StrReplace(v1,"@","-") "-","-")[1])
+        , r:=((c>>16)&0xFF)-rr, g:=((c>>8)&0xFF)-gg, b:=(c&0xFF)-bb
+        if j:=InStr(v1, "@")
+        {
+          n:=this.Floor(SubStr(v1,j+1))
+          , n:=Floor(4606*255*255*(1-n)*(1-n)), j:=r+rr+rr
+          if v:=((1024+j)*r*r+2048*g*g+(1534-j)*b*b<=n)
+            Break
+        }
+        else
+        {
+          c:=this.Floor("0x" StrSplit(v1 "-","-")[2])
+          , dR:=(c>>16)&0xFF, dG:=(c>>8)&0xFF, dB:=c&0xFF
+          if v:=(Abs(r)<=dR && Abs(g)<=dG && Abs(b)<=dB)
+            Break
+        }
+      }
+      ascii[k]:=v, (show[k] && i:=(v?i+1:i-1))
+    }
+    bg:=(i>0 ? "1":"0"), G_.Call("BlackWhite")
+    ListLines lls
+    return
+  Case "ColorPos2Two":
+    _Gui:=FindText_Capture
+    c:=_Gui["SelColor"].Value
+    if (c="")
+    {
+      _Gui.Opt("+OwnDialogs")
+      MsgBox Lang["s12"] " !", "Tip", "4096 T1"
+      return
+    }
+    n:=this.Floor(_Gui["Similar2"].Value), n:=Round(n/100,2)
+    , color:="#" c "@" n
     , n:=Floor(4606*255*255*(1-n)*(1-n)), k:=i:=0
     , rr:=(c>>16)&0xFF, gg:=(c>>8)&0xFF, bb:=c&0xFF
     ListLines (lls:=A_ListLines)?0:0
     Loop nW*nH
       c:=cors[++k], r:=((c>>16)&0xFF)-rr
       , g:=((c>>8)&0xFF)-gg, b:=(c&0xFF)-bb, j:=r+rr+rr
-      , ascii[k]:=v:=((1024+j)*r*r+2048*g*g+(1534-j)*b*b<=n
-      ? 0x000000:0xFFFFFF), (!cut[k] && i:=(v?i-1:i+1))
-    bg:=(i>0 ? "1":"0")
-    ;--------------
-    Loop 25 + 0*(ty:=dy-1)*(k:=0)
-    Loop 71 + 0*(tx:=dx-1)*(ty++)
-    if (k++)*0 + (++tx)<nW && ty<nH && !cut[i:=ty*nW+tx+1]
-      SendMessage 0x2001,0,ascii[i],C_[k]
+      , ascii[k]:=v:=((1024+j)*r*r+2048*g*g+(1534-j)*b*b<=n)
+      , (show[k] && i:=(v?i+1:i-1))
+    bg:=(i>0 ? "1":"0"), G_.Call("BlackWhite")
     ListLines lls
     return
-  Case "ColorDiff2Two":
-    _Gui:=FindText_Capture
-    c:=_Gui["SelColor"].Value
-    if (c="")
-    {
-      _Gui.Opt "+OwnDialogs"
-      MsgBox(Lang["s12"] " !", "Tip", "4096 T1")
-      return
-    }
-    dR:=_Gui["dR"].Value
-    dG:=_Gui["dG"].Value
-    dB:=_Gui["dB"].Value
-    rr:=(c>>16)&0xFF, gg:=(c>>8)&0xFF, bb:=c&0xFF
-    , n:=Format("{:06X}",(dR<<16)|(dG<<8)|dB)
-    , color:=StrReplace(c "-" n,"0x"), k:=i:=0
-    ListLines (lls:=A_ListLines)?0:0
-    Loop nW*nH
-      c:=cors[++k], r:=(c>>16)&0xFF, g:=(c>>8)&0xFF, b:=c&0xFF
-      , ascii[k]:=v:=(Abs(r-rr)<=dR && Abs(g-gg)<=dG && Abs(b-bb)<=dB
-      ? 0x000000:0xFFFFFF), (!cut[k] && i:=(v?i-1:i+1))
-    bg:=(i>0 ? "1":"0")
-    ;--------------
+  Case "BlackWhite":
     Loop 25 + 0*(ty:=dy-1)*(k:=0)
     Loop 71 + 0*(tx:=dx-1)*(ty++)
-    if (k++)*0 + (++tx)<nW && ty<nH && !cut[i:=ty*nW+tx+1]
-      SendMessage 0x2001,0,ascii[i],C_[k]
-    ListLines lls
+    if (k++)*0 + (++tx)<nW && ty<nH && show[i:=ty*nW+tx+1]
+      SendMessage 0x2001,0,(ascii[i] ? 0 : 0xFFFFFF),C_[k]
     return
   Case "Modify":
-    _Gui:=FindText_Capture
-    Modify:=_Gui["Modify"].Value
+    Modify:=FindText_Capture["Modify"].Value
     return
   Case "MultiColor":
-    _Gui:=FindText_Capture
-    MultiColor:=_Gui["MultiColor"].Value
+    MultiColor:=FindText_Capture["MultiColor"].Value
     Result:=""
     ToolTip
     return
   Case "Undo":
     Result:=RegExReplace(Result, ",[^/]+/[^/]+/[^/]+$")
     ToolTip Trim(Result,"/,")
-    return
-  Case "Similar1":
-    _Gui:=FindText_Capture
-    _Gui["Similar2"].Value:=_Gui["Similar1"].Value
-    return
-  Case "Similar2":
-    _Gui:=FindText_Capture
-    _Gui["Similar1"].Value:=_Gui["Similar2"].Value
     return
   Case "GetTxt":
     txt:=""
@@ -3281,53 +3198,53 @@ Gui(cmd, arg1:="", args*)
     {
       v:=""
       Loop nW
-        v.=cut[++k] ? "" : ascii[k] ? "0":"1"
+        v.=!show[++k] ? "" : ascii[k] ? "1":"0"
       txt.=v="" ? "" : v "`n"
     }
     ListLines lls
     return
   Case "Auto":
-    Gui_("GetTxt")
+    G_.Call("GetTxt")
     if (txt="")
     {
-      FindText_Capture.Opt "+OwnDialogs"
-      MsgBox(Lang["s13"] " !", "Tip", "4096 T1")
+      FindText_Capture.Opt("+OwnDialogs")
+      MsgBox Lang["s13"] " !", "Tip", "4096 T1"
       return
     }
     While InStr(txt,bg)
     {
       if (txt~="^" bg "+\n")
-        txt:=RegExReplace(txt, "^" bg "+\n"), Gui_("CutU")
+        txt:=RegExReplace(txt, "^" bg "+\n"), G_.Call("CutU")
       else if !(txt~="m`n)[^\n" bg "]$")
-        txt:=RegExReplace(txt, "m`n)" bg "$"), Gui_("CutR")
+        txt:=RegExReplace(txt, "m`n)" bg "$"), G_.Call("CutR")
       else if (txt~="\n" bg "+\n$")
-        txt:=RegExReplace(txt, "\n\K" bg "+\n$"), Gui_("CutD")
+        txt:=RegExReplace(txt, "\n\K" bg "+\n$"), G_.Call("CutD")
       else if !(txt~="m`n)^[^\n" bg "]")
-        txt:=RegExReplace(txt, "m`n)^" bg), Gui_("CutL")
+        txt:=RegExReplace(txt, "m`n)^" bg), G_.Call("CutL")
       else Break
     }
     txt:=""
     return
   Case "OK", "SplitAdd", "AllAdd":
     _Gui:=FindText_Capture
-    _Gui.Opt "+OwnDialogs"
-    Gui_("GetTxt")
+    _Gui.Opt("+OwnDialogs")
+    G_.Call("GetTxt")
     if (txt="") && (!MultiColor)
     {
-      MsgBox(Lang["s13"] " !", "Tip", "4096 T1")
+      MsgBox Lang["s13"] " !", "Tip", "4096 T1"
       return
     }
-    if InStr(color,"@") && (UsePos) && (!MultiColor)
+    if InStr(color,"#") && (!MultiColor)
     {
-      r:=StrSplit(color,"@")
+      r:=StrSplit(color,"@","#")
       k:=i:=j:=0
       ListLines (lls:=A_ListLines)?0:0
       Loop nW*nH
       {
-        if (cut[++k])
+        if (!show[++k])
           Continue
         i++
-        if (k=cors.SelPos)
+        if (k=SelPos)
         {
           j:=i
           Break
@@ -3336,7 +3253,7 @@ Gui(cmd, arg1:="", args*)
       ListLines lls
       if (j=0)
       {
-        MsgBox(Lang["s12"] " !", "Tip", "4096 T1")
+        MsgBox Lang["s12"] " !", "Tip", "4096 T1"
         return
       }
       color:="#" j "@" r[2]
@@ -3346,7 +3263,7 @@ Gui(cmd, arg1:="", args*)
     {
       if InStr(color,"#")
       {
-        MsgBox(Lang["s14"], "Tip", "4096 T3")
+        MsgBox Lang["s14"], "Tip", "4096 T3"
         return
       }
       bg:=StrLen(StrReplace(txt,"0"))
@@ -3355,7 +3272,7 @@ Gui(cmd, arg1:="", args*)
       Loop w:=nW-CutLeft-CutRight
       {
         i++
-        if (!cut[k++] && A_Index<w)
+        if (!show[k++] && A_Index<w)
           Continue
         i:=Format("{:d}",i)
         v:=RegExReplace(txt,"m`n)^(.{" i "}).*","$1")
@@ -3380,7 +3297,7 @@ Gui(cmd, arg1:="", args*)
         }
       }
       Event:=cmd, Result:=s
-      _Gui.Hide
+      _Gui.Hide()
       return
     }
     if (!MultiColor)
@@ -3399,7 +3316,7 @@ Gui(cmd, arg1:="", args*)
     if (cmd="AllAdd")
     {
       Event:=cmd, Result:=s
-      _Gui.Hide
+      _Gui.Hide()
       return
     }
     x:=nX+CutLeft+(nW-CutLeft-CutRight)//2
@@ -3414,26 +3331,25 @@ Gui(cmd, arg1:="", args*)
     . "`n}`n"
     . "`n`; ok:=FindText(&X:=`"wait`", &Y:=3, 0,0,0,0,0,0,Text)  `; " r[7]
     . "`n`; ok:=FindText(&X:=`"wait0`", &Y:=-1, 0,0,0,0,0,0,Text)  `; " r[8]
-    . "`n`nMsgBox(`"" r[1] ":``t`" (IsObject(ok)?ok.Length:ok)"
+    . "`n`nMsgBox `"" r[1] ":``t`" (IsObject(ok)?ok.Length:ok)"
     . "`n  . `"``n``n" r[2] ":``t`" (A_TickCount-t1) `" " r[3] "`""
     . "`n  . `"``n``n" r[4] ":``t`" X `", `" Y"
-    . "`n  . `"``n``n" r[5] ":``t<`" (IsObject(ok)?ok[1].id:`"`") `">`", `"Tip`", 4096)`n"
+    . "`n  . `"``n``n" r[5] ":``t<`" (IsObject(ok)?ok[1].id:`"`") `">`", `"Tip`", 4096`n"
     . "`nTry For i,v in ok  `; ok " r[6] " ok:=FindText().ok"
     . "`n  if (i<=2)"
     . "`n    FindText().MouseTip(ok[i].x, ok[i].y)`n"
     Event:=cmd, Result:=s
-    _Gui.Hide
+    _Gui.Hide()
     return
   Case "SavePic2":
     x:=nX+CutLeft, w:=nW-CutLeft-CutRight
     y:=nY+CutUp, h:=nH-CutUp-CutDown
-    Gui_("ScreenShot", x "|" y "|" (x+w-1) "|" (y+h-1) "|0")
+    G_.Call("ScreenShot", x "|" y "|" (x+w-1) "|" (y+h-1) "|0")
     return
   Case "ShowPic":
-    _Gui:=FindText_Main
     i:=EditGetCurrentLine(hscr)
     s:=EditGetLine(i, hscr)
-    _Gui["MyPic"].Value:=Trim(this.ASCII(s),"`n")
+    FindText_Main["MyPic"].Value:=Trim(this.ASCII(s),"`n")
     return
   Case "KeyDown":
     Critical
@@ -3442,7 +3358,7 @@ Gui(cmd, arg1:="", args*)
       return
     Try ctrl:="", ctrl:=args[3]
     if (ctrl=hscr)
-      SetTimer Gui_ShowPic, -150
+      SetTimer G_ShowPic, -150
     else if (ctrl=_Gui["ClipText"].Hwnd)
     {
       s:=_Gui["ClipText"].Value
@@ -3455,7 +3371,7 @@ Gui(cmd, arg1:="", args*)
     if (k1=FindText_SubPic.Hwnd)
     {
       ; Two windows trigger two messages
-      if (A_TickCount-oldt)<100 || !GetKeyState("LButton","P")
+      if (A_TickCount-oldt)<100 || !this.State("LButton")
         return
       CoordMode "Mouse"
       MouseGetPos &k1, &k2
@@ -3465,25 +3381,25 @@ Gui(cmd, arg1:="", args*)
         Sleep 50
         MouseGetPos &k3, &k4
         this.RangeTip(Min(k1,k3), Min(k2,k4)
-        , Abs(k1-k3), Abs(k2-k4), (A_MSec<500 ? "Red":"Blue"))
+        , Abs(k1-k3)+1, Abs(k2-k4)+1, (A_MSec<500 ? "Red":"Blue"))
       }
-      Until !GetKeyState("LButton","P")
+      Until !this.State("LButton")
       ListLines lls
       this.RangeTip()
       this.GetBitsFromScreen(,,,,0,&zx,&zy)
       this.ClientToScreen(&sx, &sy, 0, 0, sub_hpic)
       if Abs(k1-k3)+Abs(k2-k4)>4
         sx:=zx+Min(k1,k3)-sx, sy:=zy+Min(k2,k4)-sy
-        , sw:=Abs(k1-k3), sh:=Abs(k2-k4)
+        , sw:=Abs(k1-k3)+1, sh:=Abs(k2-k4)+1
       else
         sx:=zx+k1-sx-71//2, sy:=zy+k2-sy-25//2, sw:=71, sh:=25
-      Gui_("CaptureUpdate")
+      G_.Call("CaptureUpdate")
       FindText_Capture["MyTab1"].Choose(1)
       oldt:=A_TickCount
       return
     }
-    if (k1!=FindText_Capture.Hwnd)
-      return Gui_("KeyDown", arg1, args*)
+    else if (k1!=FindText_Capture.Hwnd)
+      return G_.Call("KeyDown", arg1, args*)
     MouseGetPos(,,, &k2, 2)
     k1:=0
     ListLines (lls:=A_ListLines)?0:0
@@ -3496,29 +3412,27 @@ Gui(cmd, arg1:="", args*)
     else if (k1>71*25)
     {
       k3:=nW*nH+dx+(k1-71*25)
-      SendMessage 0x2001,0,((cut[k3]:=!cut[k3])?0x0000FF:0xAAFFFF),k2
+      SendMessage 0x2001,0,((show[k3]:=!show[k3])?0x0000FF:0xAAFFFF),k2
       return
     }
-    k2:=Mod(k1-1,71)+dx, k3:=(k1-1)//71+dy
-    if (k2<0 || k2>=nW || k3<0 || k3>=nH)
+    k3:=Mod(k1-1,71)+dx, k4:=(k1-1)//71+dy
+    if (k3>=nW || k4>=nH)
       return
-    k1:=k, k4:=c, k:=k3*nW+k2+1
-    if (MultiColor && !cut[k])
+    k1:=k, k:=k4*nW+k3+1, k5:=c
+    if (MultiColor && show[k])
     {
-      c:="," (nX+k2) "/" (nY+k3) "/"
-      . Format("{:06X}",cors[k]&0xFFFFFF)
+      c:="," (nX+k3) "/" (nY+k4) "/" Format("{:06X}",cors[k]&0xFFFFFF)
       , Result.=InStr(Result,c) ? "":c
       ToolTip Trim(Result,"/,")
     }
-    if (Modify && bg!="" && !cut[k])
+    if (Modify && bg!="" && show[k])
     {
-      ascii[k]:=c:=(ascii[k] ? 0x000000:0xFFFFFF)
-      if (tx:=Mod(k-1,nW)-dx)>=0 && tx<71 && (ty:=(k-1)//nW-dy)>=0 && ty<25
-        SendMessage 0x2001,0,c,C_[ty*71+tx+1]
+      c:=((ascii[k]:=!ascii[k]) ? 0 : 0xFFFFFF)
+      SendMessage 0x2001,0,c,k2
     }
     else
     {
-      c:=cors[k], cors.SelPos:=k
+      c:=cors[k], SelPos:=k
       _Gui:=FindText_Capture
       _Gui["SelGray"].Value:=(((c>>16)&0xFF)*38+((c>>8)&0xFF)*75+(c&0xFF)*15)>>7
       _Gui["SelColor"].Value:=Format("0x{:06X}",c&0xFFFFFF)
@@ -3526,7 +3440,7 @@ Gui(cmd, arg1:="", args*)
       _Gui["SelG"].Value:=(c>>8)&0xFF
       _Gui["SelB"].Value:=c&0xFF
     }
-    k:=k1, c:=k4
+    k:=k1, c:=k5
     return
   Case "RButtonDown":
     Critical
@@ -3534,7 +3448,7 @@ Gui(cmd, arg1:="", args*)
     if (k1!=FindText_SubPic.Hwnd)
       return
     ; Two windows trigger two messages
-    if (A_TickCount-oldt)<100 || !GetKeyState("RButton","P")
+    if (A_TickCount-oldt)<100 || !this.State("RButton")
       return
     r:=[x, y, w, h, pX, pY, pW, pH]
     CoordMode "Mouse"
@@ -3548,11 +3462,11 @@ Gui(cmd, arg1:="", args*)
       Sleep 10
       MouseGetPos &k3, &k4
       x:=Min(Max(pX+k3-k1,-pW),0), y:=Min(Max(pY+k4-k2,-pH),0)
-      FindText_SubPic.Show "NA x" x " y" y
+      FindText_SubPic.Show("NA x" x " y" y)
       FindText_Capture["MySlider3"].Value:=Round(-x/pW*100)
       FindText_Capture["MySlider4"].Value:=Round(-y/pH*100)
     }
-    Until !GetKeyState("RButton","P")
+    Until !this.State("RButton")
     ListLines lls
     x:=r[1], y:=r[2], w:=r[3], h:=r[4], pX:=r[5], pY:=r[6], pW:=r[7], pH:=r[8]
     oldt:=A_TickCount
@@ -3563,10 +3477,10 @@ Gui(cmd, arg1:="", args*)
     {
       ToolTip
       PrevControl:=ctrl_name
-      if IsSet(Gui_ToolTip)
+      if IsSet(G_ToolTip)
       {
-        SetTimer Gui_ToolTip, PrevControl ? -500 : 0
-        SetTimer Gui_ToolTipOff, PrevControl ? -5500 : 0
+        SetTimer G_ToolTip, PrevControl ? -500 : 0
+        SetTimer G_ToolTipOff, PrevControl ? -5500 : 0
       }
     }
     return
@@ -3579,8 +3493,7 @@ Gui(cmd, arg1:="", args*)
     ToolTip
     return
   Case "CutL2", "CutR2", "CutU2", "CutD2":
-    _Gui:=FindText_Main
-    s:=_Gui["MyPic"].Value
+    s:=FindText_Main["MyPic"].Value
     s:=Trim(s,"`n") . "`n", v:=SubStr(cmd,4,1)
     if (v="U")
       s:=RegExReplace(s,"^[^\n]+\n")
@@ -3590,23 +3503,22 @@ Gui(cmd, arg1:="", args*)
       s:=RegExReplace(s,"m`n)^[^\n]")
     else if (v="R")
       s:=RegExReplace(s,"m`n)[^\n]$")
-    _Gui["MyPic"].Value:=Trim(s,"`n")
+    FindText_Main["MyPic"].Value:=Trim(s,"`n")
     return
   Case "Update":
-    _Gui:=FindText_Main
-    ControlFocus(hscr)
+    ControlFocus hscr
     i:=EditGetCurrentLine(hscr)
     s:=EditGetLine(i, hscr)
     if !RegExMatch(s, "(<[^>\n]*>[^$\n]+\$)\d+\.[\w+/]+", &r)
       return
-    v:=_Gui["MyPic"].Value
+    v:=FindText_Main["MyPic"].Value
     v:=Trim(v,"`n") . "`n", w:=Format("{:d}",InStr(v,"`n")-1)
     v:=StrReplace(StrReplace(v,"0","1"),"_","0")
     s:=StrReplace(s, r[0], r[1] . w "." this.bit2base64(v))
     v:="{End}{Shift Down}{Home}{Shift Up}{Del}"
-    ControlSend(v, hscr)
-    EditPaste(s, hscr)
-    ControlSend("{Home}", hscr)
+    ControlSend v, hscr
+    EditPaste s, hscr
+    ControlSend "{Home}", hscr
     return
   }
 }
@@ -3630,7 +3542,7 @@ CutL2      = CutL = Cut the Left Edge of the text in the edit box below
 CutR2      = CutR = Cut the Right Edge of the text in the edit box below
 CutD2      = CutD = Cut the Lower Edge of the text in the edit box below
 Update     = Update = Update the text in the edit box below to the line of Code
-GetRange   = GetRange = Get screen range and update the search range of the Code
+GetRange   = GetRange = Get screen range to Clipboard and update the search range of the Code
 GetOffset  = GetOffset = Get position offset relative to the Text from the Code and update FindText().Click()
 GetClipOffset  = GetOffset2 = Get position offset relative to the Text from the Left Box
 Capture    = Capture = Initiate Image Capture Sequence
@@ -3645,9 +3557,8 @@ SplitAdd   = SplitAdd = Using Markup Segmentation to Generate Text Library
 AllAdd     = AllAdd = Append Another FindText Search Text into Previously Generated Code
 Gray2Two      = Gray2Two = Converts Image Pixels from Gray Threshold to Black or White
 GrayDiff2Two  = GrayDiff2Two = Converts Image Pixels from Gray Difference to Black or White
-Color2Two     = Color2Two = Converts Image Pixels from Color Similar to Black or White
+Color2Two     = Color2Two = Converts Image Pixels from Color List to Black or White
 ColorPos2Two  = ColorPos2Two = Converts Image Pixels from Color Position to Black or White
-ColorDiff2Two = ColorDiff2Two = Converts Image Pixels from Color Difference to Black or White
 SelGray    = Gray = Gray value of the selected color
 SelColor   = Color = The selected color
 SelR       = R = Red component of the selected color
@@ -3669,15 +3580,17 @@ CutD3      = D3 = Cut the Lower Edge by 3
 Modify     = Modify = Allows Modify the Black and White Image
 MultiColor = FindMultiColor = Click multiple colors with the mouse, then Click OK button
 Undo       = Undo = Undo the last selected color
+Undo2      = Undo = Undo the last added color in Color List
 Comment    = Comment = Optional Comment used to Label Code ( Within <> )
 Threshold  = Gray Threshold = Gray Threshold which Determines Black or White Pixel Conversion (0-255)
 GrayDiff   = Gray Difference = Gray Difference which Determines Black or White Pixel Conversion (0-255)
 Similar1   = Similarity = Adjust color similarity as Equivalent to The Selected Color
 Similar2   = Similarity = Adjust color similarity as Equivalent to The Selected Color
-DiffR      = R = Red Difference which Determines Black or White Pixel Conversion (0-255)
-DiffG      = G = Green Difference which Determines Black or White Pixel Conversion (0-255)
-DiffB      = B = Blue Difference which Determines Black or White Pixel Conversion (0-255)
+AddColorSim  = AddList = Add Color to Color List and Run Color2Two
+AddColorDiff = AddList = Add Color to Color List and Run Color2Two
+ColorList  = = Color list for converting black and white images
 DiffRGB    = R/G/B = Determine the allowed R/G/B Error (0-255) when Find MultiColor
+DiffRGB2   = R/G/B = Determine the allowed R/G/B Error (0-255)
 Bind0      = BindWin1 = Bind the window and Use GetDCEx() to get the image of background window
 Bind1      = BindWin1+ = Bind the window Use GetDCEx() and Modify the window to support transparency
 Bind2      = BindWin2 = Bind the window and Use PrintWindow() to get the image of background window
@@ -3696,12 +3609,12 @@ ClipText   = = Displays the Text data from clipboard
 Offset     = = Displays the results of GetOffset2 or GetRange
 SelectBox  = = Select a screenshot to display in the upper left corner of the screen
 s1  = FindText
-s2  = Gray|GrayDiff|Color|ColorPos|ColorDiff|MultiColor
+s2  = Gray|GrayDiff|Color|ColorPos|MultiColor
 s3  = Capture Image To Text
 s4  = Capture Image To Text and Find Text Tool
-s5  = Direction keys to fine tune\nFirst click RButton\nMove the mouse away\nSecond click RButton
+s5  = Direction keys to fine tune\nFirst click RButton(or Ctrl)\nMove the mouse away\nSecond click RButton(or Ctrl)
 s6  = Unbind Window using
-s7  = Please drag a range with the LButton\nCoordinates are copied to clipboard
+s7  = Drag a range with LButton(or Ctrl)\nCoordinates are copied to clipboard
 s8  = Found|Time|ms|Pos|Result|value can be get from|Wait 3 seconds for appear|Wait indefinitely for disappear
 s9  = Success
 s10 = The Capture Position|Perspective binding window\nRight click to finish capture
@@ -3709,8 +3622,8 @@ s11 = Please Set Gray Difference First
 s12 = Please select the core color first
 s13 = Please convert the image to black or white first
 s14 = Can't be used in ColorPos mode, because it can cause position errors
-s15 = ReTry|ToFile|GetRange|ToClipboard
-s16 = LButton Drag to select range\nDirection keys to fine tune\nRButton or ESC to get range\nDouble-Click copy to Clipboard
+s15 = Are you sure about the scope of your choice?\n\nIf not, you can choose again
+s16 = Please add colors to the color list first
 s17 = Please Save Picture First
 s18 = Capture|ScreenShot
     )"
@@ -3725,8 +3638,6 @@ s18 = Capture|ScreenShot
 
 }  ;// Class End
 
-Script_End() {
-}
 
 ;================= The End =================
 
