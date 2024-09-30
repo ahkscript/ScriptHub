@@ -1,7 +1,7 @@
 ﻿; Source: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=95659
 ; Author: just me
 
-#Requires AutoHotKey v2.0-beta.1
+#Requires AutoHotKey v2.0
 ; ======================================================================================================================
 ; Function:       Notifies about changes within folders.
 ;                 This is a rewrite of HotKeyIt's WatchDirectory() released at
