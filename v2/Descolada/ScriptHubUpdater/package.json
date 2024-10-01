@@ -1,0 +1,13 @@
+﻿{
+	"author": "Descolada",
+	"bugs": "https://github.com/ahkscript/ScriptHub/issues",
+	"dependencies": {
+		"G33kDude/cJson": "^2.0.0"
+	},
+	"description": "Auto-updates this repository with newest copies of forums' libraries",
+	"license": "MIT",
+	"main": "main.ahk",
+	"name": "ScriptHubUpdater",
+	"repository": "ahkscript/ScriptHub/main",
+	"version": "0.0.1"
+}
