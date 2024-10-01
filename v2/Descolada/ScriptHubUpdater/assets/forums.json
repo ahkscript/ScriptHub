@@ -1,4 +1,21 @@
 ﻿{
+	"AstraVista": [
+		{
+			"codebox": 4,
+			"last_check": "20241001191819",
+			"main": "ScriptVar.ahk",
+			"required_substring": "Packet creator: Object deep clone, compile, and parse",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=127205"
+		}
+	],
+	"DaveT1": [
+		{
+			"last_check": "20241001191820",
+			"main": "Expect.ahk",
+			"required_substring": "class ExpectClass",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=130093"
+		}
+	],
 	"Descolada": [
 		{
 			"codebox": -2,
@@ -20,6 +37,14 @@
 			"main": "GuiResizer.ahk",
 			"required_substring": "Call: GuiReSizer(GuiObj, WindowMinMax",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?t=113921"
+		}
+	],
+	"Flipeador": [
+		{
+			"last_check": "20241001191820",
+			"main": "WinCloseEx.ahk",
+			"required_substring": "---        WinCloseEx          --",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=126579"
 		}
 	],
 	"Hellbent": [
@@ -44,6 +69,14 @@
 			"main": "MemoryModule.ahk",
 			"required_substring": "MemoryLoadLibrary(buf)",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=128846"
+		}
+	],
+	"Ruevil2": [
+		{
+			"last_check": "20241001191820",
+			"main": "ADOSQL.ahk",
+			"required_substring": "ADOSQL v6 - By [VxE]",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=125462"
 		}
 	],
 	"SKAN": [
@@ -113,6 +146,20 @@
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=79220"
 		}
 	],
+	"cyruz": [
+		{
+			"last_check": "20241001191821",
+			"main": "StdoutToVar.ahk",
+			"required_substring": "Function .....: StdoutToVar",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=109148"
+		},
+		{
+			"last_check": "20241001191822",
+			"main": "ConfMan.ahk",
+			"required_substring": "Class ........: ConfMan",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=112809"
+		}
+	],
 	"feiyue": [
 		{
 			"last_check": "20240930192412",
@@ -147,6 +194,12 @@
 			"main": "SQLiteDB.ahk",
 			"required_substring": "CLASS SQliteDB - SQLiteDB main class",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=95389"
+		},
+		{
+			"last_check": "20241001191822",
+			"main": "GuiCtrlTips.ahk",
+			"required_substring": "; Release date: 2023-05-28",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=116218"
 		}
 	],
 	"lexikos": [
@@ -163,6 +216,15 @@
 			"main": "RegisterWaitCallback.ahk",
 			"required_substring": "Register *callback* to be called",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=110691"
+		}
+	],
+	"neogna2": [
+		{
+			"codebox": -1,
+			"last_check": "20241001191839",
+			"main": "GetOpenedFiles.ahk",
+			"required_substring": ";GetOpenedFiles(PID): return",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=110405"
 		}
 	]
 }
