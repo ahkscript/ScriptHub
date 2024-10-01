@@ -1,7 +1,7 @@
 ﻿; Source: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=110405
 ; Author: neogna2
 
-#Requires AutoHotkey v2.0-beta.14
+#Requires AutoHotkey v2
 ;GetOpenedFiles(PID): return a Map with all filepaths opened in a process (PID)
 ;  2020-05-31 v1 teadrinker                               https://www.autohotkey.com/r?p=332647
 ;  2022-11-12 v2.beta14 neogna2                           https://www.autohotkey.com/r?p=490815
