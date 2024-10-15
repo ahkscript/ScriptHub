@@ -135,6 +135,13 @@
 			"main": "PathX.ahk",
 			"required_substring": "PathX(Path, X*",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120582"
+		},
+		{
+			"codebox": 15,
+			"last_check": "20241015041812",
+			"main": "RunCMD.ahk",
+			"required_substring": "RunCMD(P_CmdLine, P_WorkingDir := \"\", P_Codepage",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=133668"
 		}
 	],
 	"Tigerlily": [
@@ -162,7 +169,7 @@
 	],
 	"feiyue": [
 		{
-			"last_check": "20240930192412",
+			"last_check": "20241015041813",
 			"main": "FindText.ahk",
 			"required_substring": ";===== Copy The Following Functions To Your Own Code Just once",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=116471"
