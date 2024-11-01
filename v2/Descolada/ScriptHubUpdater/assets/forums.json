@@ -245,6 +245,12 @@
 			"main": "ObjRegisterActive.ahk",
 			"required_substring": "_clsid := Buffer(16, 0)",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=6&t=6148&start=40"
+		},
+		{
+			"last_check": "20241101230347",
+			"main": "XInput.ahk",
+			"required_substring": "XInput_Init(dll:=\"\")",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=106254"
 		}
 	],
 	"neogna2": [
