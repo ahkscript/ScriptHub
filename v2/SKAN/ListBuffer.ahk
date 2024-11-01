@@ -1,21 +1,25 @@
 ﻿; Source: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=101121
 ; Author: SKAN
 
-ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for ah2 on D52L/D78R @ autohotkey.com/r?t=101121
+ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)        ;    v0.65 by SKAN for ah2 on D52L/D79G @ autohotkey.com/r?t=101121
 {
+    Static  TextEnc := ""  ;  Change this to "cp437" if you prefer ASCII text
+
     Bin := Type(Bin) = "VarRef" ? %Bin% : Bin
 
     If  ( IsObject(Bin) = 0  or  HasProp(Bin, "Ptr") = 0  or  HasProp(Bin, "Size") = 0 )
     and ( MsgBox("Not a Buffer-like Object", "ListBuffer", "T3 Icon? 0x1000") )
           Return ( ListBuffer.Pos := 0 )
 
-                    QPC(R := 0)                           ;  By SKAN  for ah2 on CT91/D497 @ autohotkey.com/r?p=419443
+                    QPX(T?, N?, M?, D?) ; v0.12 by SKAN for ah2 on CT91/D79D @ autohotkey.com/r?t=133066
                     {
-                        Static   P := 0,  F := 0, Q := DllCall("Kernel32\QueryPerformanceFrequency", "int64p",&F)
-                        Return ( DllCall("Kernel32\QueryPerformanceCounter","int64p",&Q) * 0 + (R ? (P:=Q)*0 : (Q-P)/F) )
+                        Static  F,  Q := DllCall("Kernel32\QueryPerformanceFrequency", "int64p",&F := 0)
+                        Return (  DllCall("Kernel32\QueryPerformanceCounter", "int64p",&Q)
+                               ,  Round( ((Q/F) - (T??0)) / (D??1) * (1000 ** (M??0)), N??7)  )
                     }
 
-    Local  TickCount      :=  QPC(1)
+    Local  TT         ;   :=  QPX()
+        ,  TickCount      :=  QPX()
         ,  RetVal         :=  0                           ;  The return value of this function
         ,  Loading        :=  True                        ;  Disallow GuiClose() until GUI fully loaded
         ,  ReverseSearch  :=  0                           ;  Default Checkbox value
@@ -31,9 +35,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
     If (  Bin.HasProp("Title") and StrLen(Bin.Title)  )
           Title           :=  Bin.Title
 
-   Local   hMod1          :=  DllCall("Kernel32\LoadLibrary", "str","RichEd20.dll", "ptr")
-        ,  hMod2          :=  DllCall("Kernel32\LoadLibrary", "str","Crypt32.dll",  "ptr")
-
+    Local  hMod1          :=  DllCall("Kernel32\LoadLibrary", "str","RichEd20.dll", "ptr")
         ,  HexL           :=  Bin.Size * 3                ;  Hex buffer len at 3x size of original
         ,  Hex                                            ;  Hex buffer
         ,  CRLF           :=  "`r`n"
@@ -43,12 +45,15 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
         ,  ChkB1,  ChkB2                                  ;  Reverse, BigEndian
         ,  Text1,  Text2,  Text3,  Text4,  TextB          ;  Offset, Search, Values, Hex data, BinText
         ,  Text5,  Text6,  TextL                          ;  Pointer (Type/Pointer), Text (of BinText), LoadDelay
+        ,  Text,   Txt                                    ;  BinToTxt192(),  FormatBits()/UpdateBits()
         ,  Edit1,  Edit2,  Edit3                          ;  Offset, Search, Values
         ,  UpDn1                                          ;  Attached to Offset
         ,  Rich1                                          ;  Hex data
         ,  MySB                                           ;  StatusBar
         ,  SB_Text        :=  ""                          ;  StatusBar text
 
+    ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+                                                          ;           -------------------------   GuiControls begin   ------
     AlwaysOnTop := AlwaysOnTop ? " +AlwaysOnTop" : ""
 
     MyGui   :=   Gui("+DpiScale " AlwaysOnTop, "ListBuffer" (Strlen(Title) ? " - " : "") Title)
@@ -57,9 +62,9 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                     GetSysColor(n)
                     {
-                        Return  Format( "{5:}{6:}{3:}{4:}{1:}{2:}"
-                                      , StrSplit( Format("{:06X}", DllCall("User32\GetSysColor", "int",n)) )*
-                                      )
+                        Return ( n  :=  DllCall("User32\GetSysColor", "uint",n, "uint")
+                               , n  :=  StrSplit(Format("{:06X}", n))
+                               , Format("{5:}{6:}{3:}{4:}{1:}{2:}", n*) )
                     }
 
     ;  Edit3 (Values Edit Control) will be flagged 'Readonly' and loses its default color.
@@ -70,10 +75,9 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
         ,  X, Y, W, H                                     ;  W = Width of Edit3 (Values Edit Control)
 
                  MyGui.SetFont("s11", "Courier New")
-  , Edit3   :=   MyGui.AddEdit("xm ym R5 +ReadOnly -Tabstop " ColorOption, Format("{:48}",""))         ; Values Edit Control
+  , Edit3   :=   MyGui.AddEdit("xm ym R7 +ReadOnly -Tabstop " ColorOption, Format("{:48}",""))         ; Values Edit Control
   ,              Edit3.GetPos(,,&W)                       ;  To apply same width (48 characters) to RichEdit control
   ,              Edit3.Text := ""
-
   ,              MyGui.SetFont("s10", "Segoe UI")
   , Text1   :=   MyGui.AddText("xm y8 0x100 w124", "Offset")                               ;  SS_NOTIFY := 0x100
 
@@ -87,6 +91,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                     {                ;     arrow keys. Selects appropriate Hex, 3 times value of Offset.
                         PostMessage(0xB1, UpDn1.Value*3, UpDn1.Value*3+2, Rich1)           ;  EM_SETSEL
                     }
+
 
                     SelectOffsetEnable(Enable := True)
                     {
@@ -147,7 +152,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                    ,    ObjRelease(pUnknown)
 
                         If ( A_Ptrsize = 8 )                                                ; tiny.cc/OnTxPropertyBitsChange
-                            Return ComCall(OnTxPropertyBitsChange, TxtSrv, "int",0x802, "int",0x2)
+                             Return ComCall(OnTxPropertyBitsChange, TxtSrv, "int",0x802, "int",0x2)
 
                                                                             ;    Thanks lexikos @ autohotkey.com/r/?p=402798
                         Local  vtbl                    :=  NumGet(TxtSrv.Ptr, "ptr")
@@ -170,7 +175,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
   , Text6   :=   MyGui.AddText("xm y+12 0x100", "Text")                                    ;  SS_NOTIFY := 0x100
   ,              MyGui.SetFont("s11", "Courier New")
   ,              MyGui.AddText("r5 y+4 Center E0x20000 w" W)
-  , TextB   :=   MyGui.AddText("xp+16 yp+8 r4 w" W-20)                                     ;  Display Bin converted to Text
+  , TextB   :=   MyGui.AddText("xp+16 yp+8 r4 0x80 w" W-20)                                ;  Display Bin converted to Text
 
     Local  EditMargins  :=  Format("0x{1:04X}{1:04X}", 8*(A_ScreenDPI/96))
 
@@ -185,8 +190,10 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                     ToggleEndian(*)                       ;  Toggles value between Little Endian and Big Endian
                     {
+                        RichSelectChars(1, True)
                         BigE   :=  ChkB2.Value
                         NumValues(Bin, UpDn1.Value, Bytes)                         ;  Update Values
+                        MySB_Tip(BigE ? "[Big endian]" :  "[Little endian]", 5000)
                     }
 
                  ChkB2.OnEvent("Click", ToggleEndian)
@@ -198,8 +205,10 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
   , MySB    :=   MyGui.AddStatusBar()
   ,              MySB.SetParts(X, W, X)                   ;  Set active status bar centered to Edit3 (Value Edit Control)
 
+                                                          ;           ----------------------------   GuiControls end  ------
     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    Local  FileMenu    :=  Menu()                         ;           ----------------   Gui MenuBar for Accelerators ------
+                                                          ;           ----------------   Gui MenuBar for Accelerators ------
+    Local  FileMenu    :=  Menu()
         ,  FocusMenu   :=  Menu()
         ,  HexMenu     :=  Menu()
         ,  ToggleMenu  :=  Menu()
@@ -208,18 +217,20 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
         ,  HexInt      :=  Menu()
         ,  Unsigned    :=  Menu()
         ,  Signed      :=  Menu()
+        ,  Bits        :=  Menu()
         ,  Menus       :=  MenuBar()
 
                     OpenTextInNotepad(Filename)
                     {
-                        TickCount   :=  QPC(1)
-                        Local  Text :=  BinToTxt(Bin.Ptr, Bin.Size)
-                        TickCount   :=  QPC(0)
+                        Local  Text
 
-                        Try    FileDelete(Filename)
-                        Try    FileAppend(Text, Filename, "RAW")
-                          ,    MySB_Tip("Text conversion in " Round(TickCount*1000, 1) "ms.  Opening text in Notepad", 5000)
-                          ,    Run('Notepad.exe /A "' Filename '"',, "Max")
+                        TT   :=  QPX()
+                        Text :=  BinToTxt(Bin.Ptr, Bin.Size)
+                        TT   :=  QPX(TT, 1, 1)
+
+                        Try    FileOpen(Filename, "w", "UTF-8-RAW").RawWrite(Text)
+                          ,    MySB_Tip("Text conversion in " TT "ms.  Opening text in Notepad", 5000)
+                          ,    Run('Notepad.exe "' Filename '"',, "Max")
                         Catch
                                MySB_Tip("[File creation/open failed] : " Filename, 5000)
                     }
@@ -259,9 +270,9 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
              . "||cp0|utf-8|utf-16|cp936"
              . "||1|2|3|4|5|6|7|8"
              , "|"
-          If ( A_LoopField )
-               SearchFill.Add( A_LoopField, SearchItemFill)
-        Else   SearchFill.Add()
+        If (  A_LoopField  )
+              SearchFill.Add( A_LoopField, SearchItemFill)
+        Else  SearchFill.Add()
 
                     RichSelectChars(Bytes := 1, Post := False)
                     {
@@ -301,24 +312,28 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                     }
 
 
-                    CopyAsBase64()
+                    CopyBufToStr(TrgIsHex)
                     {
-                        Local  Offset  :=  UpDn1.Value
-                            ,  Base64  :=  ""
-                            ,  Reqd    :=  0
+                        Local  Trg, Src := Object()
 
-                        DllCall("Crypt32\CryptBinaryToString"
-                              , "ptr",Bin.Ptr+Offset, "int",SelBytes, "int",0x40000001, "ptr",0, "intp",&Reqd)
+                        Src.Ptr   :=  Bin.Ptr + UpDn1.Value
+                        Src.Size  :=  SelBytes
 
-                        VarSetStrCapacity(&Base64, Reqd)
+                                        BufToStr(&Src, &Trg, TrgIsHex := False) ; Modified ver! By SKAN for ah2 on D66U/D79G
+                                        {                                       ;       Original @ autohotkey.com/r?t=120470
+                                            Local  Flags   :=  (TrgIsHex ? 0xC : 0x1) | 0x40000000
+                                                ,  Bytes   :=  Src.Size
+                                                ,  RqdCap  :=  1 + ( TrgIsHex ? ( Bytes * 2 )
+                                                                              : ( (Ceil(Bytes*4/3) +3) & ~0x03 ) )
 
-                        DllCall("Crypt32\CryptBinaryToString"
-                              , "ptr",Bin.Ptr+Offset, "int",SelBytes, "int",0x40000001, "str",Base64, "intp",&Reqd)
+                                            VarSetStrCapacity(&Trg, RqdCap - 1)
+                                            Return  DllCall( "Crypt32\CryptBinaryToStringW", "ptr",Src, "int",Bytes
+                                                           , "int",Flags, "str",Trg, "intp",&RqdCap )
+                                        }
 
-                        A_Clipboard  :=  Base64
-
-                        If ( Reqd )
-                             MySB_Tip("[Copied " SelBytes " bytes] : " SubStr(Base64, 1,47), 0)
+                        BufToStr(&Src, &Trg, TrgIsHex)
+                        A_Clipboard := Trg
+                        MySB_Tip("[Copied " SelBytes " bytes] : " SubStr(Trg, 1, 47), 0)
                     }
 
 
@@ -384,9 +399,10 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                         Local  Buf     :=  Buffer(8, 0)
                             ,  Val     :=  0
                             ,  Ptr     :=  Bin.Ptr + UpDn1.Value
-                            ,  IntType :=  InStr(ItemName,"Alt+",   True, -1) ? "Unsigned"
-                                       :   InStr(ItemName,"Shift+", True, -1) ? "Signed"
-                                                                              : "Hex"
+                            ,  IntType :=  InStr(ItemName,"Shift+Alt",  True, -1) ? "Bits of"
+                                        :  InStr(ItemName,"Shift+Ctrl", True, -1) ? "Signed"
+                                        :  InStr(ItemName,"Alt+",       True, -1) ? "Unsigned"
+                                                                                  : "Hex"
                         Loop ( Bytes ) ;   instead of RtlMoveMemory()
                                Val := BigE ? NumGet(Ptr, Bytes - A_Index, "char")
                                            : NumGet(Ptr, A_Index - 1, "char")
@@ -394,16 +410,38 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                         Val  :=  NumGet(Buf, "int64")
 
+                                        UpdateBits(Num, Len)
+                                        {
+                                             FormatBits(Num, Len, &Txt)
+                                             Local  Text  :=  SubStr(Txt, -39)
+
+                                             SendMessage(0xB1, 302, 341, Edit3)               ;  EM_SETSEL
+                                             SendMessage(0xC2,   0, StrPtr(Text), Edit3)      ;  EM_REPLACESEL
+
+                                             If ( Len > 8 )
+                                                  Text  :=  SubStr(Txt, 1, 39)
+                                                , SendMessage(0xB1, 253, 292, Edit3)          ;  EM_SETSEL
+                                                , SendMessage(0xC2,   0, StrPtr(Text), Edit3) ;  EM_REPLACESEL
+                                        }
+
+
                                         Signed(Val := 0, Bits := 32)   ; By SKAN for ah2 on D65F @ autohotkey.com/r?p=521661
                                         {
                                             Bits //= 4
+
                                             Local  Len  :=  Bits<2 ? 2 : Bits>15 ? 15 : Bits
                                                 ,  Hex  :=  Format("{:016X}", Val)
                                                 ,  Det  :=  Format("0x8{:0" Len-1 "}", "")
                                                    Val  :=  ("0x" SubStr(Hex,-Len)) + 0
+
                                             Return Val<Det ? Val : (Val & (Det-1)) - Det
                                         }
 
+                        If ( IntType  =  "Bits of"  )
+                             Val     :=  (  UpdateBits(Val, Bytes*2)
+                                         ,  LTrim(FormatBits(Val, Bytes*2), " ·")  )
+
+                        Else
                         If ( IntType  = "Signed" and Bytes<8 )
                              Val     :=  Signed(Val, Bytes*8)
 
@@ -425,6 +463,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
            HexInt.Add(   A_Index " byte" A_Tab "Ctrl+"       A_Index, CopyInteger)
          , Unsigned.Add( A_Index " byte" A_Tab "Alt+"        A_Index, CopyInteger)
          , Signed.Add(   A_Index " byte" A_Tab "Shift+Ctrl+" A_Index, CopyInteger)
+         , Bits.Add(     A_Index " byte" A_Tab "Shift+Alt+"  A_Index, CopyInteger)
 
     IntMenu.Add("&Hex", HexInt)
   , IntMenu.Add("&Unsigned", Unsigned)
@@ -433,7 +472,9 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
   , HexMenu.Add("&Copy to clipboard    "  A_Tab "Ctrl+C", (*) => CopyToClipboard(MyGui.FocusedCtrl))
   , HexMenu.Add()
   , HexMenu.Add("Copy as &Integer", IntMenu)
-  , HexMenu.Add("Co&py as Base64       "  A_Tab "Ctrl+P", (*) => CopyAsBase64())
+  , HexMenu.Add("Copy as &Bits",    Bits)
+  , HexMenu.Add("Co&py as Base64       "  A_Tab "Ctrl+P", (*) => CopyBufToStr(False))
+  , HexMenu.Add("Copy as H&ex          "  A_Tab "Ctrl+E", (*) => CopyBufToStr(True))
   , HexMenu.Add()
   , HexMenu.Add("Copy &GUID            "  A_Tab "Ctrl+G", (*) => CopyGUID())
   , HexMenu.Add("Copy &Text (unicode)  "  A_Tab "Ctrl+T", (*) => CopyText("UTF-16"))
@@ -456,6 +497,9 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
     HexMenu.Add("Goto &First offset"     A_Tab "Ctrl+F",(*) => HexDataGoTo(     0))
   , HexMenu.Add("Goto &Last offset "     A_Tab "Ctrl+L",(*) => HexDataGoTo(HexL-3))
   , HexMenu.Add("Select Curre&nt offset" A_Tab "Ctrl+N",(*) => HexDataGoTo(    -1))
+  , HexMenu.Add()
+  , HexMenu.Add("Zoo&m"                  A_Tab "Ctrl+M",(*) => SendMessage(0x4E1, 160, 100, Rich1)) ; EM_SETZOOM
+  , HexMenu.Add("Un&zoom"                A_Tab "Ctrl+Z",(*) => SendMessage(0x4E1,    0,  0, Rich1)) ; EM_SETZOOM
 
   , Menus.Add("&File",         FileMenu)
   , Menus.Add("&Quick-focus",  FocusMenu)
@@ -469,7 +513,6 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
   , TextB.OnEvent("ContextMenu", (*) => FileMenu.Show())
   , Text2.OnEvent("ContextMenu", (*) => SearchFill.Show())
 
-
                     GuiClose()
                     {
                         ListBuffer.Pos := Bin.Size ? (UpDn1.Value + 1) : 0
@@ -482,7 +525,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                         If ! ( RetVal = 0 or RetVal = 1 )
                         {
-                               If ( RetVal<0 And Bin.HasProp("NoReturn0") And Bin.NoReturn0 )
+                               If ( RetVal<0 and Bin.HasProp("NoReturn0") and Bin.NoReturn0 )
                                {
                                     If ( Bin.HasProp("NoReturn0_Msg") and StrLen(Bin.NoReturn0_Msg) )
                                          Return MySB_Tip(Bin.NoReturn1_Msg, 5000)
@@ -490,7 +533,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                                }
 
                                Else
-                               If ( RetVal>0 And Bin.HasProp("NoReturn1") And Bin.NoReturn1 )
+                               If ( RetVal>0 and Bin.HasProp("NoReturn1") and Bin.NoReturn1 )
                                {
                                     If ( Bin.HasProp("NoReturn1_Msg") and StrLen(Bin.NoReturn1_Msg) )
                                          Return MySB_Tip(Bin.NoReturn1_Msg, 5000)
@@ -502,9 +545,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                         DllCall("User32\DestroyWindow", "ptr",hTooltip)
                         MyGui.Destroy()
-
                         DllCall("Kernel32\FreeLibrary", "ptr",hMod1)               ;  RichEd20.dll
-                        DllCall("Kernel32\FreeLibrary", "ptr",hMod2)               ;  Crypt32.dll
                     }
 
     MyGui.OnEvent("Close",  (*) => (RetVal := 0, GuiClose()))
@@ -525,6 +566,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
   , Edit2.OnEvent("LoseFocus", (*) => FocusIndicator(Text2))
   , Edit3.OnEvent("Focus",     (*) => FocusIndicator(Text3))
   , Edit3.OnEvent("LoseFocus", (*) => FocusIndicator(Text3))
+
     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                                                           ;           -------   Rich control settings/routines  begin  -----
     Local  EN_SETFOCUS  :=  0x100
@@ -590,7 +632,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                                                           ;           -------   Rich control settings/routines  end  -------
     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-                                                          ;           ----------  Tooltip for controls routines begin  -----
+                                                          ;           --------  Tooltip for controls - routines begin  -----
 
                     CtrlSetTip(GuiCtrl, TipText, *)              ;  Original by 'just me'.
                     {                                            ;  GuiCtrlSetTip() - Add tooltips to your Gui.Controls
@@ -650,20 +692,12 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
   , CtrlSetTip(Text6, Tip[6]) ; Text (BinText)
   , CtrlSetTip(ChkB1, Tip[3]) ; Reverse
   , CtrlSetTip(ChkB2, Tip[8]) ; BigEndian
-                                                          ;           ------------  Tooltip for controls routines end  -----
+                                                          ;           ----------  Tooltip for controls - routines end  -----
     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     WinMoveBottom(TextL)                                  ;  To display correctly ordered ClassNN in Window Spy
   , WinMoveBottom(Rich1)
   , WinMoveBottom(Edit3)
-
-    If ( LoadDelay )
-         TextL.Text := "LoadDelay.. Please wait!"
-     ,   Rich1.Opt("-Redraw")
-     ,   MyGui.Opt("+Disabled")
-
-    MyGui.Show("AutoSize")  ; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - Show the GUI
-    ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
                     MySB_Tip(Text, TimeOut := 3000)
                     {
@@ -688,8 +722,40 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
     MySB_Tip("[Loading ...]", 0)
 
+    If ( LoadDelay )
+         TextL.Text := "LoadDelay.. Please wait!"
+     ,   Rich1.Opt("-Redraw")
+     ,   MyGui.Opt("-Disabled")
+
+    MyGui.Show("AutoSize")  ; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - Show the GUI
+    ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+                    BufToHexSpA(&Buf)                          ;  Converts buffer content to 'Spaced Hex', much faster than
+                    {                                          ;  Crypt32.dll.  Every byte is converted in to
+                        Static mcode                           ;  2 hex Chars + 1 space = 3 Chars. So, 1.0 MB of Buffer will
+                        Local  Trg := Buffer(Buf.Size * 3 + 1) ;  consume 3.0 MB ANSI text (+ Null Terminator) in
+                                                               ;  Rich1 (RichEdit20A) control.
+                        If (  IsSet(mcode) = 0  )
+                              mcode := Buffer(96 +16, 0)
+
+                           ,  ( A_PtrSize = 8 )
+                                ? NumPut( "int64",0x66c0314f76c08545, "int64",0x0000000000841f0f, "int64",0x1214b60f46c28941
+                                        , "int64",0x46d2894504fac141, "int64",0x834911884511148a, "int64",0xb60f46c2894101c1
+                                        , "int64",0xe28341d289451214, "int64",0x11884511148a460f, "int64",0x2001c64101c18349
+                                        , "int64",0x4401c08301c18349, "int64",0x0001c641bc72c039, "int64",0xc3, mcode)
+                                : NumPut( "int64",0x8b1024448b575653, "int64",0x8b18244c8b142454, "int64",0x312576c9851c2474
+                                        , "int64",0x04fbc13a1cb60fff, "int64",0xb60f461e88181c8a, "int64",0x181c8a0fe3833a1c
+                                        , "int64",0x47462006c6461e88, "int64",0x5f0006c6dd72cf39, "int64",0xc35b5e, mcode)
+
+                            ,  DllCall("Kernel32\VirtualProtect", "ptr",mcode, "ptr",96, "int",0x40, "intp",0)
+                            ,  StrPut("0123456789ABCDEF", mcode.ptr + 96, 16, "")                             ; lookup table
+
+                        Return ( DllCall(mcode ,"ptr",mcode.Ptr + 96, "ptr",Buf, "uint",Buf.Size, "ptr",Trg, "cdecl")
+                               , Trg )
+                    }
+
     If ( Bin.Size )
-         Hex      :=  BufferToSHex(Bin)                                             ;  Convert buffer to 'Spaced Hex' buffer
+         Hex      :=  BufToHexSpA(&Bin)                                             ;  Convert buffer to 'Spaced Hex' buffer
        , DllCall("User32\SetWindowTextA", "ptr",Rich1.Hwnd, "ptr",Hex)              ;  and apply 'Spaced Hex' into RichEdit
        , Hex.Size :=  0                                                             ;  and save memory
 
@@ -698,8 +764,8 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
        , SendMessage(0xB1, Bin.Size*3+2, Bin.Size*3+2, Rich1)  ;  Move to Hex last offset to fully account loading time
        , Rich1.OnNotify(0x702, EN_SELCHANGE, 1)                ;  Monitor selection change in Hex data (Turn on)
 
-    UpDn1.Value := 0
-  , TickCount  :=  Round(QPC(), 3)                             ;  End of Loading time.
+    UpDn1.Value :=  0
+  , TickCount   :=  QPX(TickCount, 3)                          ;  End of Loading time.
 
     Local  Size  :=  DllCall("Shlwapi\StrFormatByteSizeW", "int64",Bin.Size, "str",Format("{:16}",""), "int",16, "str")
     MySB_Tip("[Loading completed] : " Size " in " TickCount "s", 9999)
@@ -714,10 +780,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
        , MyGui.Opt("-Disabled")
 
     If ( Bin.HasProp("Offset") and IsInteger(Bin.Offset) )
-         SelectOffsetEnable(False)
-       , UpDn1.Value := Bin.Offset
-       , RichSelectChars(1)
-       , SelectOffsetEnable(True)
+         UpDn1.Value := Bin.Offset
 
     If ( Bin.HasProp("Focus") )
     {
@@ -734,16 +797,16 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
     If ( Bin.HasProp("Search") and InStr(Bin.Search, ":", True) )
          Edit2.Text := Bin.Search
        , Sleep(0)
-       , RichSelectChars(0)
+       , RichSelectChars(1)
        , TrySearch()
 
-    Loading        :=  False                                   ;  Mark Loading completed to allow GuiClose() to work.
+    Loading  :=  False                                         ;  Mark Loading completed to allow GuiClose() to work.
+
     WinWaitClose(MyGui.Hwnd)
     Return RetVal
 
     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     ; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -   End of Main! Dependencies follow
-
 
                      ReplaceWithNulls(Buf, Ord, nType)                     ;  by SKAN on D78I/D78I
                      {                                                     ;  @ autohotkey.com/r?p=581806
@@ -828,11 +891,14 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                                  Num[2] := ""
                         }
 
+                        FormatBits(Num[1], 2, &Txt)
+
                         Edit3.Text := Format( "Char  {1:11} {2:11}             Float"   CRLF
                                             . "Short {3:11} {4:11}  {5:16}"             CRLF
                                             . "Int24 {6:11} {7:11}                  "   CRLF
                                             . "Int32 {8:11} {9:11}            Double"   CRLF
-                                            . "Int64 {10:23}  {11:16}"
+                                            . "Int64 {10:23}  {11:16}"                  CRLF
+                                            . "{12:}" CRLF "{13:}"
                                             , Num[1]
                                             , Num[1]<0x80                     ? Num[1] : (Num[1] & 0x7F      )  - 0x80
                                             , Num[2]
@@ -844,89 +910,104 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                                             , Not Num[4] || Num[4]<0x80000000 ? Num[4] : (Num[4] & 0x7FFFFFFF)  - 0x80000000
                                             , Num[5]
                                             , Double_
+                                            , "Bits    ···· ···· ···· ···· ···· ···· ···· ····"
+                                            , "        ···· ···· ···· ···· ···· ···· " SubStr(Txt, -9)
                                             )
                     }
 
                     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-                    BufferToSHex(Buf)                     ;  Converts buffer content to 'Spaced Hex', much faster than
-                    {                                     ;  Crypt32.dll.  Every byte is converted in to
-                        Static mCode                      ;  2 hex Chars + 1 space = 3 Chars.   So, 1.0 MB of Buffer will
-                        Local  Hex                        ;  consume 3.0 MB ANSI text (+ Null Terminator) in
-                            ,  mSz := 128                 ;  Rich1 (RichEdit20A) control.
+                    FormatBits(Num, Len, &Bits?)            ; v0.10 by SKAN for ah2 on D79E/D79G @ autohotkey.com/r?t=101121
+                    {
+                        Static mcode, hex
 
-                        If ( IsSet(mCode) = 0 )
-                            mCode := Buffer(mSz, 0)
-                         ,  DllCall("Kernel32\VirtualProtect", "ptr",mCode, "ptr",mSz, "int",0x40, "int*",0)
-                         ,  DllCall("Crypt32\CryptStringToBinary"
-                                  , "str",A_PtrSize=8
+                        If (  IsSet(mcode) = 0  )
+                              mcode := Buffer(200 + 256, 0)
 
-                                  ? "U1ZFhcB2djHARTHJDx9AAEGJwkYPthQRRYnTQcHrBESI20GD+wlAD5fWQPbeQIDmB0CAxjBAAPNEic6IHDJFid"
-                                  . "NBg+MPRYjaQYP7CUEPl9NB9ttBgOMHQYDDMEUA2mdFjVkBRogUGmdFjVECQsYEEiBBg8EDg8ABRDnAcpNeW8M="
+                           ,  ( A_PtrSize = 8 )
+                                ? NumPut( "int64",0x4100000001b85653, "int64",0xc2894100000050b9, "int64",0x4d10c28341daf741
+                                        , "int64",0x465014b70f4fd263, "int64",0x05e983411114b60f, "int64",0x66d3894466d9634d
+                                        , "int64",0x6601e3836603ebc1, "int64",0x4100b7be6630c383, "int64",0x0f66000000fffa81
+                                        , "int64",0x665a1c894266de44, "int64",0x6602ebc166d38944, "int64",0x6630c3836601e383
+                                        , "int64",0x00fffa814100b7be, "int64",0x4266de440f660000, "int64",0xd3894466025a5c89
+                                        , "int64",0x6601e38366ebd166, "int64",0x4100b7be6630c383, "int64",0x0f66000000fffa81
+                                        , "int64",0x045a5c894266de44, "int64",0x01e38366d3894466, "int64",0x00b7be6630c38366
+                                        , "int64",0x66000000fffa8141, "int64",0x5a5c894266de440f, "int64",0x0f11f88301c08306
+                                        , "int64",0xc35b5effffff488c, mcode)
+                                : NumPut( "int64",0x311424448b575653, "int64",0x8b00000050b942d2, "int64",0x0fdff7d789182474
+                                        , "int64",0x10247c8b207e74b7, "int64",0x6605e983373cb60f, "int64",0x836603eec166fe89
+                                        , "int64",0xbb6630c6836601e6, "int64",0x000000ffff8100b7, "int64",0x48348966f3440f66
+                                        , "int64",0x6602eec166fe8966, "int64",0x6630c6836601e683, "int64",0x0000ffff8100b7bb
+                                        , "int64",0x748966f3440f6600, "int64",0xeed166fe89660248, "int64",0x30c6836601e68366
+                                        , "int64",0x00ffff8100b7bb66, "int64",0x8966f3440f660000, "int64",0x8366fe8966044874
+                                        , "int64",0xbb6630c6836601e6, "int64",0x000000ffff8100b7, "int64",0x48748966f3440f66
+                                        , "int64",0x5c8c0f11fa834206, "int64",0xc35b5e5fffffff, mcode)
 
-                                  : "VYnlg+wEU1ZXi30Mg30QAHZQMfYx24tNCA+2DDGJTfzB6QSIyoP5CQ+X0PbYJAcEMADCiBQfi1X8idGD4Q+Iyo"
-                                  . "P5CQ+X0fbZgOEHgMEwAMqIVB8BxkQfAiCDwwNGO3UQcrRfXluJ7F3D"
+                            ,  DllCall("Kernel32\VirtualProtect", "ptr",mcode, "ptr",200, "int",0x40, "intp",0)
 
-                                  , "int",A_PtrSize=8 ? 172 : 140, "int",0x1, "ptr",mCode, "intp",mSz, "int",0, "int",0)
+                            ,  NumPut( "int64", 0x0F0E0D0C0B0A, NumPut( "int64", 0x0F0E0D0C0B0A, NumPut( "int64"    ; lookup
+                              , 0x0807060504030201, "char",0x9, NumPut( "char",0xFF, mcode, 200 + 32), 16), 7), 24) ;  table
 
-                        Hex := Buffer((Buf.Size*3) + 2)                             ;  bytes extra for null terminator
-                        DllCall(mCode, "ptr",Buf, "ptr",Hex, "int",Buf.Size, "cdecl")
-                        NumPut("ushort", 0, Hex, Hex.Size - 2)                      ;  put a trailing null terminator
+                          If ( IsSet(Bits) = 0  or  StrLen(Bits) != 79 )
+                               Bits :=  Format("{:79}", "")
 
-                        Return Hex                        ;  Return 'Spaced Hex' as buffer
+                          Return ( hex := Format("{:16}", SubStr(Format("{:016X}", Num), -Len))
+                                 , DllCall(mcode, "ptr",mcode.Ptr + 200, "ptr",StrPtr(Bits), "ptr",StrPtr(hex), "cdecl")
+                                 , Bits )
                     }
 
                     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
                     BinToTxt192(pBin, Bytes:=192)         ;  Converts binary content to printable/readable text.
                     {
-                        Local  Txt  :=  BinToTxt(pBin, Bytes)
-                               Txt  :=  StrGet(Txt, "cp0")
+                        Text  :=  StrGet( BinToTxt(pBin, Bytes), TextEnc )
 
-                        Return  SubStr(Txt,  1, 48)  LF  SubStr(Txt,  49, 48)  LF
-                             .  SubStr(Txt, 97, 48)  LF  SubStr(Txt, 145, 48)
+                        Return  SubStr(Text,  1, 48)  LF  SubStr(Text,  49, 48)  LF
+                             .  SubStr(Text, 97, 48)  LF  SubStr(Text, 145, 48)
                     }
 
                     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
                     BinToTxt(pBin, Bytes)                 ;  Converts binary content to printable/readable text.
-                    {                                     ;  Chrs in range of 0-32, 126-161 and 173
-                        Static mCode                      ;  are converted to Chr(46), a period '.'
-                        Local  Txt
-                            ,  mSz := 104
+                    {                                     ;  Chrs in range of 0-31 and 127 are converted to a period Chr(46)
+                        Static mcode                      ;  TextEnc != "cp437": 129, 141, 143, 144, 152 & 157 are converted
+                        Local  Txt  :=  Buffer(Bytes + 1)
 
-                        If ( IsSet(mCode) = 0 )
-                            mCode := Buffer(mSz, 0)
-                         ,  DllCall("Kernel32\VirtualProtect", "ptr",mCode, "ptr",mSz, "int",0x40, "int*",0)
-                         ,  DllCall("Crypt32\CryptStringToBinary"
-                                  , "str",A_PtrSize=8
+                        If (  IsSet(mcode) = 0  )
+                              mcode := Buffer(64 + 256, 0)
 
-                                  ? "U1ZFhcB2WjHARTHJQYnCRg+2HBFBg/sgcwe7LgAAAOsqQbouAAAAQYH7rQAAAEEPRfNBD0TyQbouAAAAQYPrf0"
-                                  . "GD+yFBD0baD0feRYnKQYjbRogcEkGDwQGDwAFEOcByq15bww=="
+                           ,  ( A_PtrSize = 8 )
+                                ? NumPut( "int64",0x41c0312c76c98545, "int64",0x421014b60f4fc289, "int64",0xb241057600113c80
+                                        , "int64",0x8a47c3894107eb2e, "int64",0x148846c389411814, "int64",0x72c8394401c0831a
+                                        , "int64",0x000204c6c88944d6, "int64",0x00c3, mcode)
+                                : NumPut( "int64",0x8b1024448b575653, "int64",0x8b18244c8b142454, "int64",0x311b76f6851c2474
+                                        , "int64",0x183c80391cb60fff, "int64",0x8a03eb2eb3047600, "int64",0xf739473a1c88391c
+                                        , "int64",0x5e5f003204c6e772, "int64",0xc35b, mcode)
 
-                                  : "U1ZXg3wkGAB2SDHAMdKLTCQQD7YMAYP5IHMHvi4AAADrH78uAAAAgfmtAAAAD0X5uy4AAACD6X+D+SEPRvMPR/"
-                                  . "eLTCQUifOIHBFCQDtEJBhyvF9eW8M="
+                           ,  DllCall("Kernel32\VirtualProtect", "ptr",mcode, "ptr",64, "int",0x40, "intp",0)
 
-                                  , "int",A_PtrSize=8 ? 136 : 116, "int",0x1, "ptr",mCode, "intp",mSz, "int",0, "int",0)
+                           ,  NumPut( "uchar", 0x01, NumPut( "int64", 0x0101010101010101, "int64", 0x0101010101010101
+                                    , "int64", 0x0101010101010101, "int64", 0x0101010101010101, mcode, 64), 95)
 
-                        Txt := Buffer(Bytes)
-                        DllCall(mCode, "ptr",pBin, "ptr",Txt, "int",Bytes, "cdecl")
+                           , ( TextEnc = "cp437" ?  0  :  NumPut("int64", 0x0000010000000001, NumPut("uint", 0x01010001
+                                                       ,  NumPut("uint", 0x00000001, mcode, 193), 8), 7) )
 
-                        Return Txt
+                        Return ( DllCall(mcode, "ptr",mcode.Ptr + 64, "ptr",Txt, "ptr",pBin, "uint",Bytes, "cdecl")
+                               , Txt )
                     }
 
                     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-                    TrySearch()              ;   Attempt search
+                    TrySearch()       ;   Attempt search
                     {
-                        Local  Val           :=  Edit2.Text
+                        Local  Val    :=  Edit2.Text
 
                         If ( StrLen(Val) = 0 or Bin.Size = 0 )
                              Return
 
-                        Local  Pos           :=  0
-                             , Sel           :=  0
-                             , Err           :=  Object()
+                        Local  Pos    :=  0
+                             , Sel    :=  0
+                             , Err    :=  Object()
 
                         If ( InStr(Val, ":") = 0 )
                              Return MySB_Tip("[Search Error] : Invalid search.  Enter 'Type:Value'")
@@ -937,7 +1018,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                         If  ( ReverseSearch = 0  and  UpDn1.Value = Bin.Size-1 )
                               Return MySB_Tip("[Note] : Cannot search forward at last offset. Try at Offset 0")
 
-                        QPC(1)
+                        TT  :=  QPX()
                         Sel :=  GetSelChars(Rich1)
 
                         If ( Sel )
@@ -952,24 +1033,19 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                              UpDn1.Value += ReverseSearch ?  +1  : -1
                          ,   SelectOffsetEnable(True)
 
-                        TickCount  :=  Round(QPC()*1000, 1)
+                        TT  :=  QPX(TT, 1, 1)
 
                         If ( Err.HasProp("Message") )
                              Return  MySB_Tip("[Search Error] : " Err.Message ".", 5000)
 
                         If ( Pos )
-                        {
-                             SelectOffsetEnable(False)
+                             Return (  SelectOffsetEnable(False)
+                                    ,  UpDn1.Value := Pos - 1
+                                    ,  SelBytes    := Needle.Size
+                                    ,  RichSelectChars(SelBytes, True)
 
-                        ,    UpDn1.Value := Pos - 1
-                        ,    SelBytes    := Needle.Size
-                        ,    RichSelectChars(SelBytes, True)
-
-                        ,    SelectOffsetEnable(True)
-
-                        ,    MySB_Tip("[Search] : " Needle.Type " found at offset " Pos-1 " in " TickCount "ms", 9999)
-                             Return
-                        }
+                                    ,  SelectOffsetEnable(True)
+                                    ,  MySB_Tip("[Search] : " Needle.Type " found at offset " Pos-1 " in " TT "ms", 9999)  )
 
                         Local Loc := ReverseSearch ? "before" : "after"
                         MySB_Tip("[Search] : " Needle.Type " not found " Loc " offset " UpDn1.Value, 9999)
@@ -989,8 +1065,8 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                             ,  NullReplChr  :=  ""             ;
                             ,  Needle1      :=  Buffer(0)      ;  Numput based search:  'int:-1', 'uint:1024', 'float:1.234'
                             ,  Needle2      :=  Buffer(0)      ;
-                            ,  Len          :=  0              ;  StrPut based search:  'cp0:Fox', 'utf-8:Fox', 'utf-16:Fox'
-                            ,  Bytes        :=  0              ;
+;                            ,  Len          :=  0              ;
+                            ,  Bytes        :=  0              ;  StrPut based search:  'cp0:Fox', 'utf-8:Fox', 'utf-16:Fox'
                             ,  IsUnicode    :=  0              ;
                             ,  Pos          :=  0              ;
                             ,  StartingPos  :=  1              ;
@@ -1019,13 +1095,13 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                         {
                              If ( ValType > 0 and ValType < 9 )
                              {
-                                    Try  NumPut("uint64", Value, Buf)
-                                      ,  Needle1 := Buffer(ValType)
-                                      ,  DllCall("Kernel32\RtlMoveMemory", "ptr",Needle1, "ptr",Buf, "ptr",ValType)
-                                  Catch
-                                         Throw ValueError("Invalid numerical Value", -1)
+                                     Try   NumPut("uint64", Value, Buf)
+                                       ,   Needle1 := Buffer(ValType)
+                                       ,   DllCall("Kernel32\RtlMoveMemory", "ptr",Needle1, "ptr",Buf, "ptr",ValType)
+                                   Catch
+                                           Throw ValueError("Invalid numerical Value", -1)
                              }
-                             Else       Throw ValueError("Invalid bytes of " ValType " as type. Use 1 to 8", -1)
+                             Else          Throw ValueError("Invalid bytes of " ValType " as type. Use 1 to 8", -1)
 
                              If ( StrLen(NullReplChr) )
                                   Needle1 := ByteRev(Needle1)
@@ -1051,16 +1127,23 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                         }
 
                         Else  ;  Hex based search
-                        If  ( ValType  =   "Hex" )                                 ;  example hex search: ':FF 00 FF 00'
+                        If  ( ValType  =  "Hex" )                                  ;  example hex search: ':FF 00 FF 00'
                         {
-                              Value    :=  StrReplace(Value, A_Space)
-                            , Len      :=  StrLen(Value)
-                            , Bytes    :=  Ceil(Len/2)
-                            , Needle1  :=  Buffer(Bytes)
-                                                                              ;  CRYPT_STRING_HEXRAW := 0xC
-                              If ! DllCall("Crypt32\CryptStringToBinary", "str",Value, "int",Len, "int",0xC
-                                         , "ptr",Needle1, "uintp",Bytes, "int",0, "int",0)
-                                   Throw ValueError("Invalid hex Value" , -2)
+                              Value  :=  StrReplace(Value, A_Space)
+
+                                        HexToBuf_Loop(&Hex)
+                                        {
+                                            Local  Buf := Buffer(StrLen(Hex)//2)
+
+                                            Loop ( Buf.Size )
+                                                   NumPut("char", "0x" . SubStr(Hex, 2*A_Index-1, 2), Buf, A_Index-1)
+
+                                            Return Buf
+                                        }
+
+                              If ( Mod(StrLen(Value), 2) = 0 and IsXDigit(Value) = 1 )
+                                   Needle1  :=  HexToBuf_Loop(&Value)
+                              Else Throw ValueError("Invalid hex Value" , -2)
                         }
 
                         Else  ; StrPut based text search
@@ -1068,7 +1151,7 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                              If ( StrLen(NullReplChr) )
                                   Value  :=  SubStr(Value, 2)
 
-                             Loop  Parse, ValType, ",", A_Space
+                             Loop Parse, ValType, ",", A_Space
                              {
                                      Try   ValType_             :=  A_LoopField
                                        ,   Needle%A_Index%      :=  Buffer(StrPut(Value, ValType_))
@@ -1080,10 +1163,11 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
                                    Catch
                                            Throw ValueError("Invalid text search", -4)
 
-                                  If ( StrLen(NullReplChr) )
-                                       ReplaceWithNulls(Needle%A_Index%, Ord(NullReplChr), IsUnicode ? "short" : "char")
+                                  If (  StrLen(NullReplChr)  )
+                                        ReplaceWithNulls(Needle%A_Index%, Ord(NullReplChr), IsUnicode ? "short" : "char")
                              }    Until ( A_Index = 2 )
                         }
+
 
                         StartingPos :=  ReverseSearch = 0
                                     ?   UpDn1.Value + 1
@@ -1097,9 +1181,9 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                         If ( Pos = 0 and Needle2.Size )
                         {
-                            StartingPos :=  ReverseSearch = 0
-                                        ?   UpDn1.Value + 1
-                                        :   Min(0, UpDn1.Value - HayBuffer.Size +  Needle2.Size)
+                             StartingPos :=  ReverseSearch = 0
+                                         ?   UpDn1.Value + 1
+                                         :   Min(0, UpDn1.Value - HayBuffer.Size +  Needle2.Size)
 
                             If ( Pos := InBuffer(HayBuffer, Needle2, StartingPos) )
                                  ValType := Needle2.Type
@@ -1112,36 +1196,42 @@ ListBuffer(Bin, Title := "", AlwaysOnTop := 0, *)         ;   v0.63 by SKAN for 
 
                     ;- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-                    InBuffer(HayBuffer, NeedleBuffer, StartingPos?, Occurrence?)              ;  by SKAN on D456/D78K
+                    InBuffer(HayBuffer, NeedleBuffer, StartingPos?, Occurrence?)              ;  by SKAN on D456/D79C
                     {                                                                         ;  @ autohotkey.com/r?t=101121
-                        Static mCode
-                        Local  mSz  :=  184
-                            ,  Pos  :=  0
+                        Static mcode
+                        Local  Pos := 0
 
-                        If ( NeedleBuffer.Size > HayBuffer.Size )
-                             Return 0
+                        If (  NeedleBuffer.Size > HayBuffer.Size  or  Min(NeedleBuffer.Size, HayBuffer.Size) = 0  )
+                              Return 0
 
-                        If  ( IsSet(mCode) = 0 )
-                            mCode  :=  Buffer(mSz, 0)
-                         ,  DllCall("Kernel32\VirtualProtect", "ptr",mCode, "ptr",mSz, "int",0x40, "intp",0)
-                         ,  DllCall("Crypt32\CryptStringToBinary"
-                                  , "str",A_PtrSize=8
+                        If (  IsSet(mcode) = 0  )
+                              mcode := Buffer(200, 0)
 
-                                  ? "U1ZXQVSLRCRIRItcJFCJ00Qpy4XAvgEAAABBuv////9BD07yhcB+B2dEjVD/6wgBwkGJ0kUpykSJ0kGD6QE52n"
-                                  . "dnMcBBidJBijhCODwRdU9FicpHihQQZ0KNPApEOBQ5dT1Bg/kCci9BugEAAABBg/kBdh5EiddBijw4Z0aNJBJF"
-                                  . "ieRCODwhdQlBg8IBRTnKcuJFOcp1A4PAAUQ52HQOAfKF0nIEOdp2mzHA6wRnjUIBQVxfXlvD"
+                           ,  ( A_PtrSize = 8 )
+                                ? NumPut( "int64",0x4156415441575653, "int64",0x6024548b44554157, "int64",0x44d38968245c8b44
+                                        , "int64",0xbeffffffffb8cb29, "int64",0x0fd2854500000001, "int64",0x67797ed28545f04e
+                                        , "int64",0x8941f889ff7a8d41, "int64",0xdc394101e98341c4, "int64",0x45e68945c0316277
+                                        , "int64",0x4c75313c3846388a, "int64",0x6730348a47ce8945, "int64",0x46ff89450c3c8d47
+                                        , "int64",0xf983413775393438, "int64",0x000001be41297202, "int64",0x383c8a47f7894500
+                                        , "int64",0xed8945342c8d4767, "int64",0x83410975293c3846, "int64",0x45e272ce394501c6
+                                        , "int64",0x4401c0830375ce39, "int64",0x41f401411674d839, "int64",0x10ebc031a076dc39
+                                        , "int64",0xcf2944d789d20144, "int64",0x0124448d416782eb, "int64",0x5c415e415f415d41
+                                        , "int64",0xc35b5e5f, mcode)
+                                : NumPut( "int64",0x565310ec83e58955, "int64",0x290c458b14558b57, "int64",0x7d83c031f44589d0
+                                        , "int64",0x83d8f7d09e0f0018, "int64",0x7d83fc458940fee0, "int64",0x4818458b737e0018
+                                        , "int64",0xc189f8458bf84589, "int64",0x45c75d77f44d3b4a, "int64",0x08458b00000000f0
+                                        , "int64",0x081c381e8a10758b, "int64",0x10048a10458b4175, "int64",0x0438087d8b11348d
+                                        , "int64",0x1f7202fa83307537, "int64",0x10758b00000001b8, "int64",0x7d8b01348d061c8a
+                                        , "int64",0x39400575371c3808, "int64",0x830475d039ea72d0, "int64",0x45391c458b01f045
+                                        , "int64",0x4d3bfc4d031974f0, "int64",0x8b10ebc031aa76f4, "int64",0x89d0291845030c45
+                                        , "int64",0x5f01418d87ebf845, "int64",0xc35dec895b5e, mcode)
 
-                                  : "VYnlg+wMU1ZXi1UUi0UMKdCJRfQxwIN9GAAPntD32IPg/kCJRfiDfRgAfgmLRRhIiUX86wuLRQwDRRgp0IlF/I"
-                                  . "tF/InBSjtN9HdbMcCLdQiKHA6LdRA6HnVAjTQRi30Iihw3i3UQOhwWdS+D+gJyJL4BAAAAg/oBdhaNPDGLXQiK"
-                                  . "HDuLfRA6HDd1BUY51nLqOdZ1AUA7RRx0EANN+IXJcgU7TfR2pzHA6wONQQFfXluJ7F3D"
+                           ,  DllCall("Kernel32\VirtualProtect", "ptr",mcode, "ptr",200, "int",0x40, "intp",0)
 
-                                                ; CRYPT_STRING_BASE64 := 0x1
-                                  , "int",A_PtrSize=8 ? 244 : 240, "int",0x1, "ptr",mCode, "intp",mSz, "int",0, "int",0)
-
-                        Try    Pos  :=  DllCall(mCode, "ptr", HayBuffer.Ptr,      "int", HayBuffer.Size
-                                                     , "ptr", NeedleBuffer.Ptr, "short", NeedleBuffer.Size
-                                                     , "int", StartingPos ?? 1,   "int", Occurrence ?? 1
-                                                     , "cdecl uint")
+                        Try   Pos :=  DllCall(mcode, "ptr", HayBuffer.Ptr,      "int", HayBuffer.Size
+                                                   , "ptr", NeedleBuffer.Ptr, "short", NeedleBuffer.Size
+                                                   , "int", StartingPos ?? 1,   "int", Occurrence ?? 1
+                                                   , "cdecl uint")
                         Return Pos
                     }
 } ; ________________________________________________________________________________________________________________________
