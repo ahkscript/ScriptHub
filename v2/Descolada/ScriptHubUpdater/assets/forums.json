@@ -16,6 +16,15 @@
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=130093"
 		}
 	],
+	"Delta Pythagorean": [
+		{
+			"codebox": 1,
+			"last_check": "20241101222204",
+			"main": "Lua.ahk",
+			"required_substring": "#DllLoad *i lua54.dll",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?t=122655"
+		}
+	],
 	"Descolada": [
 		{
 			"codebox": -2,
@@ -33,7 +42,7 @@
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=133138"
 		},
 		{
-			"last_check": "20241001133313",
+			"last_check": "20241101222205",
 			"main": "GuiResizer.ahk",
 			"required_substring": "Call: GuiReSizer(GuiObj, WindowMinMax",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?t=113921"
@@ -50,13 +59,13 @@
 	"Hellbent": [
 		{
 			"codebox": 4,
-			"last_check": "20240930191924",
+			"last_check": "20241101222206",
 			"main": "PopupWindow.ahk",
 			"required_substring": ";Date Started: Aug 18th, 2024",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132744"
 		},
 		{
-			"last_check": "20240930192030",
+			"last_check": "20241101222207",
 			"main": "Vector.ahk",
 			"required_substring": ";Date Started: Aug 29th 2024",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132770"
@@ -96,7 +105,7 @@
 		},
 		{
 			"codebox": 6,
-			"last_check": "20240930192120",
+			"last_check": "20241101222209",
 			"main": "InBuf.ahk",
 			"required_substring": "InBuf(Haystack, TypeVal, StartingPos?",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132507"
@@ -109,8 +118,8 @@
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132507"
 		},
 		{
-			"codebox": 8,
-			"last_check": "20240930192147",
+			"codebox": 9,
+			"last_check": "20241101222728",
 			"main": "ListBuffer.ahk",
 			"required_substring": "ListBuffer(Bin, Title := \"\", AlwaysOnTop",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=101121"
@@ -169,7 +178,7 @@
 	],
 	"feiyue": [
 		{
-			"last_check": "20241015041813",
+			"last_check": "20241101222806",
 			"main": "FindText.ahk",
 			"required_substring": ";===== Copy The Following Functions To Your Own Code Just once",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=116471"
