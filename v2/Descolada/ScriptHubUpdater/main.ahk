@@ -25,7 +25,7 @@ Main() {
             }
             
             if Entry.Has("last_check") {
-                if (LastCheck := Abs(DateDiff(A_Now, Entry["last_check"], "Days"))) < g_CheckIntervalInDays {
+                if (LastCheck := Abs(DateDiff(A_NowUTC, Entry["last_check"], "Days"))) < g_CheckIntervalInDays {
                     if g_Verbose
                         WriteStdOut "Last check was " LastCheck " days ago, skipping..."
                     goto Cleanup
@@ -57,7 +57,7 @@ Main() {
 
 AddCommitsFromWayback(Entry) {
     local thread, start
-    if !RegExMatch(Entry["url"], "t=(\d+)$", &thread:="")
+    if !RegExMatch(Entry["url"], "t=(\d+)", &thread:="")
         throw Error("Detected AutoHotkey forums link, but couldn't find thread id", -1, Entry["url"])
     try Matches := QueryForumsWaybackSnapshots(thread[1], RegExMatch(Entry["url"], "&start=(\d+)", &start:="") ? start[1] : unset)
     catch {
@@ -107,8 +107,7 @@ MaybeAddLatestCommit(Entry) {
     if FileExist("..\..\" Entry["author"] "\" Entry["main"]) && (Code == FileRead("..\..\" Entry["author"] "\" Entry["main"])) {
         if g_Verbose
             WriteStdOut "File content hasn't changed, no commit made"
-        if !Entry.Has("last_check")
-            Entry["last_check"] := Version
+        Entry["last_check"] := Version
         return 0
     }
     WriteStdOut "Creating git commit for " Version
