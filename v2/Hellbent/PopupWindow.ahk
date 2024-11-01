@@ -7,9 +7,9 @@
 ;|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|<<<()>>>|
 Class PopupWindow_v4  {
     ;Class: PopupWindow_v4
-    ;Version: 4.1
+    ;Version: 4.2
     ;Date Started: Aug 18th, 2024
-    ;Last Edit: Aug 23rd, 2024
+    ;Last Edit: OCT 2024  ;Aug 23rd, 2024
     ;Notes: 
     ;Requires GDIP for ahk v2: https://raw.githubusercontent.com/buliasz/AHKv2-Gdip/master/Gdip_All.ahk
     ;
@@ -21,12 +21,17 @@ Class PopupWindow_v4  {
     static Busy     := 0 
     static Colors{
         Get{
-            return [ "0xFF000000" , "0xFFC0C0C0" , "0xFF808080" , "0xFFFFFFFF" 
+            if( !This.HasProp( "_Colors" ) ){
+                This._Colors := [ "0xFF000000" , "0xFFC0C0C0" , "0xFF808080" , "0xFFFFFFFF" 
                 , "0xFF800000" , "0xFFFF0000" , "0xFF800080" , "0xFFFF00FF" , "0xFF008000" 
                 , "0xFF00FF00" , "0xFF808000" , "0xFFFFFF00" , "0xFF000080" , "0xFF0000FF" 
                 , "0xFF008080" , "0xFF00FFFF" , "0xFF8000FF" ]
             }
+            return This._Colors
+        }Set{
+            This._Colors := value
         }
+    }
     static pToken{
         Get{
             if( !This.HasProp( "_pToken" ) ) 
@@ -114,7 +119,8 @@ Class PopupWindow_v4  {
     Update( alpha := "" ){
         if( alpha = "" )
             alpha := This.Alpha
-        UpdateLayeredWindow( This.HWND , This.HDC , This.X , This.Y , This.W , This.H , Floor( Alpha ) )
+        UpdateLayeredWindow( This.HWND , This.HDC , Floor( This.X ) , Floor( This.Y ) , Floor( This.W ) , Floor( This.H ) , Floor( Alpha ) )
+        ; UpdateLayeredWindow( This.HWND , This.HDC , This.X , This.Y , This.W * This.Scale , This.H * This.Scale , Floor( Alpha ) )
     }
     Clear( AutoUpdate := 0 , Color := "" , Alpha := 255 ){
         if( Color ){
@@ -141,7 +147,6 @@ Class PopupWindow_v4  {
     
         local oldWidth := This.W 
         local oldHeight := This.H
-    
         if( IsObject( x ) ){
             for k , v in StrSplit( "X|Y|W|H" , "|" )  {
                 if( x.HasProp( v ) )
@@ -277,7 +282,7 @@ Class PopupWindow_v4  {
                 This._Smoothing := 2
             return This._Smoothing
         }Set{
-            if( value >= 1 && value <= 4 ){
+            if( value >= 0 && value <= 4 ){
                 if( !This.HasProp( "_Smoothing") ){
                     This._Smoothing := value
                     return
@@ -337,6 +342,15 @@ Class PopupWindow_v4  {
             return This._H
         }Set{
             PopupWindow_v4.Tips( "Use the RESIZE method to set the Window Height" )
+        }
+    }
+    G{
+        Get{
+            if( !This.HasProp( "_G" ) )
+                This._G := ""
+            return This._G
+        }Set{
+            This._G := value
         }
     }
 }
