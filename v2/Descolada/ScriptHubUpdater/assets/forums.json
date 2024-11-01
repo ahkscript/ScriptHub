@@ -2,15 +2,21 @@
 	"AstraVista": [
 		{
 			"codebox": 4,
-			"last_check": "20241001191819",
+			"last_check": "20241101225215",
 			"main": "ScriptVar.ahk",
 			"required_substring": "Packet creator: Object deep clone, compile, and parse",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=127205"
+		},
+		{
+			"last_check": "20241101225552",
+			"main": "ScriptSock.ahk",
+			"required_substring": "; Communication Between AutoHotkey Scripts",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=126320"
 		}
 	],
 	"DaveT1": [
 		{
-			"last_check": "20241001191820",
+			"last_check": "20241101225220",
 			"main": "Expect.ahk",
 			"required_substring": "class ExpectClass",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=130093"
@@ -28,7 +34,7 @@
 	"Descolada": [
 		{
 			"codebox": -2,
-			"last_check": "20240930191856",
+			"last_check": "20241101225226",
 			"main": "FileReadLine.ahk",
 			"required_substring": "FileReadLine(FileName, LineNum) =>",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=117999"
@@ -36,7 +42,7 @@
 	],
 	"FanaticGuru": [
 		{
-			"last_check": "20240930191910",
+			"last_check": "20241101225231",
 			"main": "SpellCurrency.ahk",
 			"required_substring": "SpellCurrency(MyNumber, NoDollars := true",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=133138"
@@ -50,7 +56,7 @@
 	],
 	"Flipeador": [
 		{
-			"last_check": "20241001191820",
+			"last_check": "20241101225236",
 			"main": "WinCloseEx.ahk",
 			"required_substring": "---        WinCloseEx          --",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=126579"
@@ -74,7 +80,7 @@
 	"MrDoge": [
 		{
 			"codebox": 2,
-			"last_check": "20240930192034",
+			"last_check": "20241101225242",
 			"main": "MemoryModule.ahk",
 			"required_substring": "MemoryLoadLibrary(buf)",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=128846"
@@ -82,7 +88,7 @@
 	],
 	"Ruevil2": [
 		{
-			"last_check": "20241001191820",
+			"last_check": "20241101225247",
 			"main": "ADOSQL.ahk",
 			"required_substring": "ADOSQL v6 - By [VxE]",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=125462"
@@ -91,14 +97,14 @@
 	"SKAN": [
 		{
 			"codebox": 4,
-			"last_check": "20240930192045",
+			"last_check": "20241101225253",
 			"main": "MonitorFind.ahk",
 			"required_substring": "MonitorFind(Query?, Field?",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=133259"
 		},
 		{
 			"codebox": -7,
-			"last_check": "20240930192104",
+			"last_check": "20241101225258",
 			"main": "WiseGui.ahk",
 			"required_substring": "WiseGui(Name, Options*)",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=94044"
@@ -112,7 +118,7 @@
 		},
 		{
 			"codebox": 12,
-			"last_check": "20240930192121",
+			"last_check": "20241101225303",
 			"main": "MapFile.ahk",
 			"required_substring": "MapFile(FileObj, Open:=True",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132507"
@@ -126,21 +132,21 @@
 		},
 		{
 			"codebox": 3,
-			"last_check": "20240930192231",
+			"last_check": "20241101225309",
 			"main": "RunAsTask.ahk",
 			"required_substring": "RunAsTask(SingleInstance := 0, Shortcut :=",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=119710"
 		},
 		{
 			"codebox": 4,
-			"last_check": "20240930192240",
+			"last_check": "20241101225314",
 			"main": "ToggleSound.ahk",
 			"required_substring": "ToggleSound(ID1, ID2",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=131731"
 		},
 		{
 			"codebox": -2,
-			"last_check": "20240930192248",
+			"last_check": "20241101225320",
 			"main": "PathX.ahk",
 			"required_substring": "PathX(Path, X*",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120582"
@@ -156,7 +162,7 @@
 	"Tigerlily": [
 		{
 			"codebox": 2,
-			"last_check": "20240930192331",
+			"last_check": "20241101225325",
 			"main": "MonitorFind.ahk",
 			"required_substring": "Wrapper for Monitor Configuration WinAPI Functions",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=79220"
@@ -164,13 +170,13 @@
 	],
 	"cyruz": [
 		{
-			"last_check": "20241001191821",
+			"last_check": "20241101225331",
 			"main": "StdoutToVar.ahk",
 			"required_substring": "Function .....: StdoutToVar",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=109148"
 		},
 		{
-			"last_check": "20241001191822",
+			"last_check": "20241101225336",
 			"main": "ConfMan.ahk",
 			"required_substring": "Class ........: ConfMan",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=112809"
@@ -187,32 +193,32 @@
 	"just me": [
 		{
 			"codebox": 2,
-			"last_check": "20240930192424",
+			"last_check": "20241101225341",
 			"main": "ListViewExtensions.ahk",
 			"required_substring": "Class ListViewExtensions Extends Gui.ListView",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=95019"
 		},
 		{
-			"last_check": "20240930192440",
+			"last_check": "20241101225347",
 			"main": "ToolTipOptions.ahk",
 			"required_substring": "Class ToolTipOptions {",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=113308"
 		},
 		{
-			"last_check": "20240930192509",
+			"last_check": "20241101225353",
 			"main": "WatchFolder.ahk",
 			"required_substring": "Notifies about changes within folders",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=95659"
 		},
 		{
 			"codebox": 2,
-			"last_check": "20240930192530",
+			"last_check": "20241101225358",
 			"main": "SQLiteDB.ahk",
 			"required_substring": "CLASS SQliteDB - SQLiteDB main class",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=95389"
 		},
 		{
-			"last_check": "20241001191822",
+			"last_check": "20241101225403",
 			"main": "GuiCtrlTips.ahk",
 			"required_substring": "; Release date: 2023-05-28",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=116218"
@@ -221,23 +227,30 @@
 	"lexikos": [
 		{
 			"codebox": 2,
-			"last_check": "20240930192550",
+			"last_check": "20241101225409",
 			"main": "OnProcessClose.ahk",
 			"required_substring": "Registers *callback* to be called",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=110691"
 		},
 		{
 			"codebox": 3,
-			"last_check": "20240930192551",
+			"last_check": "20241101225414",
 			"main": "RegisterWaitCallback.ahk",
 			"required_substring": "Register *callback* to be called",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=110691"
+		},
+		{
+			"codebox": -1,
+			"last_check": "20241101224651",
+			"main": "ObjRegisterActive.ahk",
+			"required_substring": "_clsid := Buffer(16, 0)",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=6&t=6148&start=40"
 		}
 	],
 	"neogna2": [
 		{
 			"codebox": -1,
-			"last_check": "20241001191839",
+			"last_check": "20241101225419",
 			"main": "GetOpenedFiles.ahk",
 			"required_substring": ";GetOpenedFiles(PID): return",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=110405"
