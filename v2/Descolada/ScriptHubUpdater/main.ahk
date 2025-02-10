@@ -24,7 +24,7 @@ Main() {
                 AddCommitsFromWayback(Entry)
             }
             
-            if Entry.Has("last_check") {
+            if Entry.Has("last_check") && Entry["last_check"] != "" {
                 if (LastCheck := Abs(DateDiff(A_NowUTC, Entry["last_check"], "Days"))) < g_CheckIntervalInDays {
                     if g_Verbose
                         WriteStdOut "Last check was " LastCheck " days ago, skipping..."
