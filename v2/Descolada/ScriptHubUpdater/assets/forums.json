@@ -52,6 +52,12 @@
 			"main": "GuiResizer.ahk",
 			"required_substring": "Call: GuiReSizer(GuiObj, WindowMinMax",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?t=113921"
+		},
+		{
+			"last_check": "20250210104309",
+			"main": "GuiButtonIcon.ahk",
+			"required_substring": "[Function] GuiButtonIcon",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=115871"
 		}
 	],
 	"Flipeador": [
@@ -75,6 +81,15 @@
 			"main": "Vector.ahk",
 			"required_substring": ";Date Started: Aug 29th 2024",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132770"
+		}
+	],
+	"Komrad Toast": [
+		{
+			"codebox": 2,
+			"last_check": "20250210104312",
+			"main": "DLLManager.ahk",
+			"required_substring": "class DLLManager",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=134661"
 		}
 	],
 	"MrDoge": [
@@ -166,6 +181,14 @@
 			"main": "MonitorFind.ahk",
 			"required_substring": "Wrapper for Monitor Configuration WinAPI Functions",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=79220"
+		}
+	],
+	"burque505": [
+		{
+			"last_check": "20250210104348",
+			"main": "JartePlus.ahk",
+			"required_substring": "Informs the Jarte program",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=135720"
 		}
 	],
 	"cyruz": [
@@ -260,6 +283,38 @@
 			"main": "GetOpenedFiles.ahk",
 			"required_substring": ";GetOpenedFiles(PID): return",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=110405"
+		}
+	],
+	"prasad383": [
+		{
+			"last_check": "20250210104359",
+			"main": "SettingsManager.ahk",
+			"required_substring": ";==========================",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=135324"
+		},
+		{
+			"codebox": 2,
+			"last_check": "20250210104428",
+			"main": "HotKeyChain.ahk",
+			"required_substring": "class HotKeyChain {",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=135125"
+		}
+	],
+	"rockitdontstopit": [
+		{
+			"last_check": "20250210104529",
+			"main": "ImageActions.ahk",
+			"required_substring": "; Click operations ====",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=135206"
+		}
+	],
+	"xroot": [
+		{
+			"codebox": 4,
+			"last_check": "20250210104532",
+			"main": "Array2Buffer.ahk",
+			"required_substring": "Class Array2Buffer{",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=135564"
 		}
 	]
 }
