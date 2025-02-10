@@ -2,7 +2,7 @@
 ; Author: SKAN
 
 RunCMD(P_CmdLine, P_WorkingDir := "", P_Codepage := "cp0", P_Func := 0, P_Slow := 1)
-{  ;  RunCMD v1.00.1 for ah2 By SKAN on D67D/D7AE @ autohotkey.com/r/?t=133668
+{  ;  RunCMD v1.00.2 for ah2 By SKAN on D67D/D7AF @ autohotkey.com/r/?t=133668
    ;  Based on StdOutToVar.ahk by Sean @ www.autohotkey.com/board/topic/15455-stdouttovar
 
     Local  hPipeR                :=  0
@@ -60,10 +60,6 @@ RunCMD(P_CmdLine, P_WorkingDir := "", P_Codepage := "cp0", P_Func := 0, P_Slow :
         ,  sOutput               :=  ""
         ,  CRLF                  :=  "`r`n"
     
-    P_Slow := !! P_Slow
-    If ( Type(P_Func) != "Func" )
-         P_Func := 0
-         
     Delay() =>  ( Sleep(P_Slow), RunCMD.Iterations += 1 )
 
     While   DllCall("Kernel32\PeekNamedPipe", "ptr",hPipeR, "ptr",0, "int",0, "ptr",0, "ptr",0, "ptr",0)
