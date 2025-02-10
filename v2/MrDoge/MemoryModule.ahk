@@ -2,8 +2,12 @@
 ; Author: MrDoge
 
 MemoryLoadLibrary(buf) {
-    ;https://github.com/fancycode/MemoryModule
-    ;https://www.joachim-bauch.de/tutorials/loading-a-dll-from-memory/
+    ; This Source Code Form is subject to the terms of the Mozilla Public
+    ; License, v. 2.0. If a copy of the MPL was not distributed with this
+    ; file, You can obtain one at https://mozilla.org/MPL/2.0/.
+    ; Copyright (c) 2004-2015 by Joachim Bauch / mail@joachim-bauch.de
+    ; https://www.joachim-bauch.de/tutorials/loading-a-dll-from-memory/
+    ; https://github.com/fancycode/MemoryModule/blob/master/MemoryModule.c
     e_lfanew:=NumGet(buf,0x3c,"Int") ;IMAGE_DOS_HEADER::e_lfanew
     optionalSectionSize:=NumGet(buf,e_lfanew+0x38,"Uint") ;IMAGE_NT_HEADERS::OptionalHeader.SectionAlignment
     NumberOfSections:=NumGet(buf,e_lfanew+0x6,"uShort") ;IMAGE_NT_HEADERS::FileHeader.NumberOfSections
