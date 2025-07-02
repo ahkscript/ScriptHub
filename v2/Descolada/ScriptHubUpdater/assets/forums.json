@@ -81,6 +81,13 @@
 			"main": "Vector.ahk",
 			"required_substring": ";Date Started: Aug 29th 2024",
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=132770"
+		},
+		{
+			"codebox": 5,
+			"last_check": "20250702045631",
+			"main": "Glyphs.ahk",
+			"required_substring": ";Date: Feb 18th 2025",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=135966"
 		}
 	],
 	"Komrad Toast": [
