@@ -36,6 +36,7 @@
 ;     Returns True on success; otherwise False.
 ; Change history:
 ;     1.0.00.00/2021-10-??/just me        -  initial release
+;     1.0.00.01/2025-03-07/just me        -  fixed bug related to INVALID_HANDLE_VALUE
 ; License:
 ;     The Unlicense -> http://unlicense.org/
 ; Remarks:
@@ -174,7 +175,7 @@ WatchFolder(Folder, UserFunc, SubTree := False, Watch := 0x03) {
          If (UserFunc Is Func) && (UserFunc.MinParams >= 2) && (Watch &= 0x017F) {
             Handle := DllCall("CreateFile", "Str", Folder . "\", "UInt", 0x01, "UInt", 0x07, "Ptr",0, "UInt", 0x03,
                                             "UInt", 0x42000000, "Ptr", 0, "UPtr")
-            If (Handle > 0) {
+            If !((Handle & 0xFFFFFFFF) = 0xFFFFFFFF) { ; INVALID_HANDLE_VALUE
                Event := DllCall("CreateEvent", "Ptr", 0, "Int", 1, "Int", 0, "Ptr", 0)
                FNI := Buffer(SizeOfFNI, 0)
                OVL := Buffer(SizeOfOVL, 0)
