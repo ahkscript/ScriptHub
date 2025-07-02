@@ -1,7 +1,7 @@
 ﻿; Source: https://www.autohotkey.com/boards/viewtopic.php?f=83&t=120582
 ; Author: SKAN
 
-PathX(Path, X*)             ; PathX() v0.67 by SKAN for ah2 on D34U/D68M @ autohotkey.com/r?p=120582
+PathX(Path, X*)             ; PathX() v0.68 by SKAN for ah2 on D34U/D855 @ autohotkey.com/r?t=120582
 {
     Local  K,V,N,U, Dr,   Di,   Fn,   Ex
         ,  FPath := Dr := Di := Fn := Ex := Format("{:260}", "")
@@ -14,7 +14,7 @@ PathX(Path, X*)             ; PathX() v0.67 by SKAN for ah2 on D34U/D68M @ autoh
       ,  U[K]  :=  N[2]                  ;  assign Key and Value to Map
 
     DllCall("Kernel32\GetFullPathNameW", "str",Trim(Path,Chr(34)), "uint",260, "str",FPath, "ptr",0)
-    DllCall("Msvcrt\_wsplitpath", "str",FPath, "str",Dr, "str",Di, "str",Fn, "str",Ex)
+    DllCall("msvcrt\_wsplitpath", "str",FPath, "str",Dr, "str",Di, "str",Fn, "str",Ex, "cdecl")
 
     Return {  Drive  :  Dr  :=  U["Dr"] ? U["Dr"] : Dr
            ,  Dir    :  Di  :=  U["dp"] ( U["Di"] ? U["Di"] : Di ) U["ds"]
