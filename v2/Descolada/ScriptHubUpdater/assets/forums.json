@@ -212,6 +212,15 @@
 			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=112809"
 		}
 	],
+	"docterry": [
+		{
+			"codebox": 4,
+			"last_check": "20250729153618",
+			"main": "XML.ahk",
+			"required_substring": "XML class for AHK v2 (2025) by docterry",
+			"url": "https://www.autohotkey.com/boards/viewtopic.php?f=83&t=138365"
+		}
+	],
 	"feiyue": [
 		{
 			"last_check": "20250702042516",
